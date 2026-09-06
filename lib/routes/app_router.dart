@@ -1,0 +1,100 @@
+// filename: routes/app_router.dart
+import 'package:flutter/widgets.dart';
+import 'package:go_router/go_router.dart';
+
+import '../views/app_shell.dart';
+import '../views/home_view.dart';
+import '../views/login_view.dart';
+import '../views/signup_view.dart';
+import '../views/career_view.dart';
+import '../views/leave_request_view.dart';
+import '../views/study_record_view.dart';
+import '../views/my_page_view.dart';
+
+final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
+  debugLabel: 'root',
+);
+final GlobalKey<NavigatorState> _homeNavigatorKey = GlobalKey<NavigatorState>(
+  debugLabel: 'home',
+);
+final GlobalKey<NavigatorState> _recordNavigatorKey = GlobalKey<NavigatorState>(
+  debugLabel: 'record',
+);
+final GlobalKey<NavigatorState> _careerNavigatorKey = GlobalKey<NavigatorState>(
+  debugLabel: 'career',
+);
+final GlobalKey<NavigatorState> _leaveNavigatorKey = GlobalKey<NavigatorState>(
+  debugLabel: 'leave',
+);
+final GlobalKey<NavigatorState> _myPageNavigatorKey = GlobalKey<NavigatorState>(
+  debugLabel: 'myPage',
+);
+
+final router = GoRouter(
+  navigatorKey: _rootNavigatorKey,
+  initialLocation: '/',
+  redirect: (context, state) {
+
+  },
+  routes: [
+    GoRoute(path: '/login', name: 'login', builder: (context, state) => const LoginView()),
+    GoRoute(path: '/signup', name: 'signup', builder: (context, state) => const SignupView()),
+    StatefulShellRoute.indexedStack(
+      builder: (context, state, navigationShell) {
+        return AppShell(navigationShell: navigationShell);
+      },
+      branches: [
+        StatefulShellBranch(
+          navigatorKey: _homeNavigatorKey,
+          routes: [
+            GoRoute(
+              path: '/',
+              name: 'home',
+              builder: (context, state) => const HomeView(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          navigatorKey: _recordNavigatorKey,
+          routes: [
+            GoRoute(
+              path: '/record',
+              name: 'record',
+              builder: (context, state) => const StudyRecordView(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          navigatorKey: _leaveNavigatorKey,
+          routes: [
+            GoRoute(
+              path: '/leave',
+              name: 'leave',
+              builder: (context, state) => const LeaveRequestView(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          navigatorKey: _careerNavigatorKey,
+          routes: [
+            GoRoute(
+              path: '/career',
+              name: 'career',
+              builder: (context, state) => const CareerView(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          navigatorKey: _myPageNavigatorKey,
+          routes: [
+            GoRoute(
+              path: '/my-page',
+              name: 'myPage',
+              builder: (context, state) => const MyPageView(),
+            ),
+          ],
+        ),
+      ],
+    ),
+  ],
+);
