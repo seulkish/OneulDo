@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../widgets/app_button.dart';
+
 class HomeView extends StatelessWidget {
   const HomeView({super.key});
 
@@ -12,10 +14,7 @@ class HomeView extends StatelessWidget {
         title: const Text('오늘부터'),
       ),
       body: Center(
-        child: ElevatedButton(
-          onPressed: () => context.go('/login'),
-          child: const Text('로그인 화면으로'),
-        ),
+        child: CommonButton(text: '출근하기', onPressed: (){})
       ),
     );
   }
