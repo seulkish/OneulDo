@@ -84,7 +84,10 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.pill),
           ),
-          textStyle: textTheme.titleMedium,
+          textStyle: textTheme.titleMedium?.copyWith(
+            fontSize: 22,
+            fontWeight: FontWeight.w600,
+          ),
         ).copyWith(
           overlayColor: const WidgetStatePropertyAll(Color(0x1F000000)),
         ),

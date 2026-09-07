@@ -10,6 +10,7 @@ import '../views/career_view.dart';
 import '../views/leave_request_view.dart';
 import '../views/study_record_view.dart';
 import '../views/my_page_view.dart';
+import '../views/landing_view.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'root',
@@ -37,6 +38,7 @@ final router = GoRouter(
 
   },
   routes: [
+    GoRoute(path: '/landing', name: 'landing', builder: (context, state) => const LandingView()),
     GoRoute(path: '/login', name: 'login', builder: (context, state) => const LoginView()),
     GoRoute(path: '/signup', name: 'signup', builder: (context, state) => const SignupView()),
     StatefulShellRoute.indexedStack(
