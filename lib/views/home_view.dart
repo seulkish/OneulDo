@@ -17,15 +17,35 @@ class HomeView extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     // TODO: 실제 데이터 연결 지점
-    const status = WorkStatus.fieldWork;
+    const status = WorkStatus.overtime;
     const targetTime = '09:00';
     const window = '08:00 ~ 11:00';
     const place = '중앙도서관 3층 열람실';
-    const progress = 0.0; // 0.0 ~ 1.0
+    const progress = 0.05; // 0.0 ~ 1.0
+
+    final Color progressColor = switch (status) {
+      WorkStatus.beforeWork => AppColors.primary,
+      WorkStatus.working => AppColors.positive,
+      WorkStatus.fieldWork => AppColors.fieldPurple,
+      WorkStatus.completed => AppColors.inkMuted,
+      WorkStatus.vacation => AppColors.vacation,
+      WorkStatus.overtime => AppColors.liveGreen,
+      WorkStatus.absent => AppColors.taskRed,
+      null => AppColors.primary,
+    };
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
-      appBar: AppBar(title: const Text('좋은 아침입니다')),
+      appBar: AppBar(title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.max,
+        children: [
+          SizedBox(height: 10,),
+          Text('좋은 아침입니다'),
+          Text('ddd', style: textTheme.labelSmall?.copyWith()),
+          SizedBox(height: 10,)
+        ],
+      )),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: EdgeInsets.all(AppSpacing.xl),
@@ -97,8 +117,9 @@ class HomeView extends StatelessWidget {
                           value: progress,
                           minHeight: 12,
                           backgroundColor: AppColors.fill,
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                            AppColors.primary,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            //AppColors.primary,
+                            progressColor,
                           ),
                         ),
                       ),
@@ -201,7 +222,7 @@ class _InfoBox extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             content,
-            maxLines: 2,
+            maxLines: 1, // 수정-한 줄로 제한
             overflow: TextOverflow.ellipsis,
             style: textTheme.bodyLarge?.copyWith(
               color: AppColors.ink,

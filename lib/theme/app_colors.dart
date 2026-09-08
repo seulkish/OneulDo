@@ -20,7 +20,7 @@ class AppColors {
 
   // ── 배경 · 면 ─────────────────────────────────────────────
   /// Canvas · 화면 배경 (Scaffold)
-  static const Color canvas = Color(0xFFF6F5F4);
+  static const Color canvas = Color(0xFFFAFAFA); // 좀 더 밝은 색으로 색상 변경
 
   /// 카드 · 시트 · 바텀내비 배경
   static const Color card = Color(0xFFFFFFFF);

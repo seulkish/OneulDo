@@ -137,7 +137,9 @@ class LoginView extends StatelessWidget {
                   ),
                   const SizedBox(width: 10),
                   GestureDetector(
-                    onTap: () {},
+                    onTap: () {
+                      context.go('/signup');
+                    },
                     child: Text(
                       '회원가입',
                       style: theme.textTheme.bodyMedium?.copyWith(

@@ -6,6 +6,7 @@ import '../views/app_shell.dart';
 import '../views/home_view.dart';
 import '../views/login_view.dart';
 import '../views/signup_view.dart';
+import '../views/set_workplace_view.dart';
 import '../views/career_view.dart';
 import '../views/leave_request_view.dart';
 import '../views/study_record_view.dart';
@@ -34,13 +35,31 @@ final GlobalKey<NavigatorState> _myPageNavigatorKey = GlobalKey<NavigatorState>(
 final router = GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/',
-  redirect: (context, state) {
-
-  },
+  redirect: (context, state) {},
   routes: [
-    GoRoute(path: '/landing', name: 'landing', builder: (context, state) => const LandingView()),
-    GoRoute(path: '/login', name: 'login', builder: (context, state) => const LoginView()),
-    GoRoute(path: '/signup', name: 'signup', builder: (context, state) => const SignupView()),
+    GoRoute(
+      path: '/landing',
+      name: 'landing',
+      builder: (context, state) => const LandingView(),
+    ),
+    GoRoute(
+      path: '/login',
+      name: 'login',
+      builder: (context, state) => const LoginView(),
+    ),
+    GoRoute(
+      path: '/signup',
+      name: 'signup',
+      builder: (context, state) => const SignupView(),
+      routes: [
+        GoRoute(
+          path: 'workplace',
+          name: 'setWorkplace',
+          builder: (context, state) => const SetWorkplaceView(),
+        ),
+      ]
+    ),
+
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) {
         return AppShell(navigationShell: navigationShell);
