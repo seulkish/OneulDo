@@ -4,10 +4,10 @@ import 'firebase_options.dart';
 import 'package:flutter/material.dart';
 
 import 'routes/app_router.dart';
-import 'theme/app_colors.dart';
-import 'theme/app_theme.dart';
+import '../theme/app_theme.dart';
 
-import 'views/home_view.dart';
+import '../views/home_view.dart';
+import '../views/login_view.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
