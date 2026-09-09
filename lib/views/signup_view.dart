@@ -71,7 +71,7 @@ class _SignupViewState extends State<SignupView> {
                     color: Colors.grey,
                   ),
                 ),
-                const SizedBox(height: 48),
+                const SizedBox(height: 33),
 
                 // 닉네임
                 Padding(
@@ -89,7 +89,7 @@ class _SignupViewState extends State<SignupView> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
                 // 이메일
                 Padding(
@@ -118,7 +118,7 @@ class _SignupViewState extends State<SignupView> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
                 Padding(
                   padding: const EdgeInsets.only(left: 10),
@@ -136,7 +136,7 @@ class _SignupViewState extends State<SignupView> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
                 Padding(
                   padding: const EdgeInsets.only(left: 10),
@@ -185,7 +185,7 @@ class _SignupViewState extends State<SignupView> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
                 Padding(
                   padding: const EdgeInsets.only(left: 10),
@@ -222,7 +222,7 @@ class _SignupViewState extends State<SignupView> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 48),
+                const SizedBox(height: 40),
 
                 CommonButton(
                   text: '다음 단계로',

@@ -17,7 +17,7 @@ class HomeView extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     // TODO: 실제 데이터 연결 지점
-    const status = WorkStatus.overtime;
+    const status = WorkStatus.beforeWork ;
     const targetTime = '09:00';
     const window = '08:00 ~ 11:00';
     const place = '중앙도서관 3층 열람실';
@@ -35,20 +35,33 @@ class HomeView extends StatelessWidget {
     };
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
-      appBar: AppBar(title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.max,
-        children: [
-          SizedBox(height: 10,),
-          Text('좋은 아침입니다'),
-          Text('ddd', style: textTheme.labelSmall?.copyWith()),
-          SizedBox(height: 10,)
-        ],
-      )),
+      backgroundColor: AppColors.canvassub,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        shape: ShapedInputBorder(shape: Border.all(), borderSide: BorderSide(color: Colors.black12)),
+        elevation: 15,
+        toolbarHeight: 100,
+        automaticallyImplyLeading: false,
+        titleSpacing: 28,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          // mainAxisSize: MainAxisSize.max,
+          children: [
+            Text('2026. 09. 02 (수)', style: textTheme.titleSmall?.copyWith(color: AppColors.inkFaint)),
+            const SizedBox(height: 4),
+            Text('좋은 아침입니다',
+              style: textTheme.headlineSmall?.copyWith(
+                fontFamily: 'GmarketSans',
+                fontWeight: FontWeight.w500,
+            ),),
+            const SizedBox(height: 4),
+            Text('매일 매일, 성실하게 그리고 꾸준하게도', style: textTheme.labelSmall?.copyWith(color: AppColors.inkFaint)),
+          ],
+        ),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: EdgeInsets.all(AppSpacing.xl),
+          padding: EdgeInsets.fromLTRB(AppSpacing.xl, AppSpacing.lg, AppSpacing.xl, AppSpacing.xl),
           child: AppCard(
             padding: EdgeInsets.zero,
             child: Column(
@@ -101,10 +114,7 @@ class HomeView extends StatelessWidget {
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: _InfoBox(
-                              title: '근무지',
-                              content: place,
-                            ),
+                            child: _InfoBox(title: '근무지', content: place),
                           ),
                         ],
                       ),
@@ -194,10 +204,7 @@ class _InfoBox extends StatelessWidget {
   final String title;
   final String content;
 
-  const _InfoBox({
-    required this.title,
-    required this.content,
-  });
+  const _InfoBox({required this.title, required this.content});
 
   @override
   Widget build(BuildContext context) {
@@ -215,9 +222,7 @@ class _InfoBox extends StatelessWidget {
         children: [
           Text(
             title,
-            style: textTheme.bodyMedium?.copyWith(
-              color: AppColors.inkFaint,
-            ),
+            style: textTheme.bodyMedium?.copyWith(color: AppColors.inkFaint),
           ),
           const SizedBox(height: 8),
           Text(

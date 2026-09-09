@@ -5,6 +5,7 @@ class CommonTextField extends StatelessWidget {
   final String? hint;
   final TextEditingController? controller;
   final bool obscureText;
+  final Widget? prefixIcon;
   final Widget? suffixIcon;
   final TextInputType? keyboardType;
   final String? Function(String?)? validator;
@@ -15,7 +16,8 @@ class CommonTextField extends StatelessWidget {
     this.hint,
     this.controller,
     this.obscureText = false,
-    this.suffixIcon,
+    this.prefixIcon, // 왼쪽 - 주소 입력
+    this.suffixIcon, // 오른쪽 - 비밀번호
     this.keyboardType,
     this.validator,
   });
@@ -28,8 +30,9 @@ class CommonTextField extends StatelessWidget {
       keyboardType: keyboardType,
       validator: validator,
       decoration: InputDecoration(
-        labelText: label,
+        labelText: label.isEmpty ? null : label,
         hintText: hint,
+        prefixIcon: prefixIcon,
         suffixIcon: suffixIcon,
         border: const OutlineInputBorder(),
       ),

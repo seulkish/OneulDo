@@ -32,6 +32,37 @@ class MyPageView extends StatelessWidget {
               },
               version: ButtonVersion.login,
             ),
+
+            const SizedBox(height: 8,),
+
+            CommonButton(
+              text: '근무지 설정',
+              onPressed: () {
+                context.go('/signup/workplace');
+              },
+              version: ButtonVersion.login,
+            ),
+
+            const SizedBox(height: 8,),
+
+            CommonButton(
+              text: '출근시간 설정',
+              onPressed: () {
+                context.go('/signup/workplace/worktime');
+              },
+              version: ButtonVersion.login,
+            ),
+
+            const SizedBox(height: 8,),
+
+            TextButton(
+              child: Text('로그아웃'),
+              onPressed: () {
+                // firebase 연동 후 signOut() 추가 예정
+                // await FirebaseAuth.instance.signOut();
+                context.go('/login');
+              },
+            ),
           ],
         ),
       ),

@@ -22,6 +22,9 @@ class AppColors {
   /// Canvas · 화면 배경 (Scaffold)
   static const Color canvas = Color(0xFFFAFAFA); // 좀 더 밝은 색으로 색상 변경
 
+  ///
+  static const Color canvassub = Color(0xFFF2F2F2);
+
   /// 카드 · 시트 · 바텀내비 배경
   static const Color card = Color(0xFFFFFFFF);
 
@@ -282,6 +285,7 @@ class AppSpacing {
   static const double lg = 16;
   static const double xl = 20;
   static const double xxl = 24;
+  static const double xxxl = 28;
 
   /// 화면 좌우 여백 · 카드 내부 여백
   static const double screenH = 16;

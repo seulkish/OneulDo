@@ -72,7 +72,7 @@ class LoginView extends StatelessWidget {
               CommonButton(
                 text: '로그인',
                 onPressed: () {
-                  context.go('/home');
+                  context.go('/');
                 },
                 version: ButtonVersion.login,
               ),
