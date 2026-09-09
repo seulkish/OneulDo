@@ -34,7 +34,7 @@ final GlobalKey<NavigatorState> _myPageNavigatorKey = GlobalKey<NavigatorState>(
 
 final router = GoRouter(
   navigatorKey: _rootNavigatorKey,
-  initialLocation: '/',
+  initialLocation: '/landing',
   redirect: (context, state) {},
   routes: [
     GoRoute(
@@ -109,7 +109,7 @@ final router = GoRouter(
           navigatorKey: _myPageNavigatorKey,
           routes: [
             GoRoute(
-              path: '/my-page',
+              path: '/my_page',
               name: 'myPage',
               builder: (context, state) => const MyPageView(),
             ),

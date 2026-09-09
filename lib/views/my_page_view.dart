@@ -22,6 +22,9 @@ class MyPageView extends StatelessWidget {
               },
               version: ButtonVersion.login,
             ),
+
+            const SizedBox(height: 8,),
+
             CommonButton(
               text: '회원가입',
               onPressed: () {
