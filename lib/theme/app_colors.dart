@@ -201,23 +201,29 @@ class AppBadges {
     foreground: Color(0xFF868B94),
   );
 
-  /// 적립 완료 (비활성 톤)
-  static const BadgeColors settled = BadgeColors(
-    background: Color(0xFFF3F4F5),
-    foreground: Color(0xFFB0B3BA),
-  );
-
   // ── 포인트 ────────────────────────────────────────────────
   /// 포인트 적립 (+50P)
   static const BadgeColors pointGain = BadgeColors(
     background: Color(0xFFD5E7F7),
-    foreground: Color(0xFF32587C),
+    foreground: Color(0xFF2878C7),
   );
 
   /// 포인트 차감
   static const BadgeColors pointLoss = BadgeColors(
     background: Color(0xFFFDE7E7),
     foreground: Color(0xFFCA1D13),
+  );
+
+  /// 포인트 상태: 적립 가능
+  static const BadgeColors pointClaimable = BadgeColors(
+    background: Color(0xFFFFF1C7),
+    foreground: Color(0xFF9A6200),
+  );
+
+  /// 적립 완료 (비활성 톤)
+  static const BadgeColors settled = BadgeColors(
+    background: Color(0xFFF3F4F5),
+    foreground: Color(0xFFB0B3BA),
   );
 
   // ── 계획 카테고리 ─────────────────────────────────────────

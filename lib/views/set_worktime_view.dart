@@ -1,5 +1,6 @@
 // filename: ../views/set_worktime_view.dart
 import 'package:flutter/material.dart';
+
 import 'package:go_router/go_router.dart';
 import 'package:oneul/widgets/common_text_field.dart';
 import 'package:oneul/widgets/status_badge.dart';
@@ -7,15 +8,14 @@ import 'package:oneul/widgets/status_badge.dart';
 import '../theme/app_colors.dart';
 import '../widgets/app_button.dart';
 
-
-class SetWorkTimeView  extends StatefulWidget {
-  const SetWorkTimeView ({super.key});
+class SetWorkTimeView extends StatefulWidget {
+  const SetWorkTimeView({super.key});
 
   @override
-  State<SetWorkTimeView > createState() => _SetWorkTimeViewState();
+  State<SetWorkTimeView> createState() => _SetWorkTimeViewState();
 }
 
-class _SetWorkTimeViewState extends State<SetWorkTimeView > {
+class _SetWorkTimeViewState extends State<SetWorkTimeView> {
   int _workHours = 4;
 
   static const int _minWorkHours = 1;
@@ -115,9 +115,7 @@ class _SetWorkTimeViewState extends State<SetWorkTimeView > {
               ),
               const SizedBox(height: 8),
 
-              Text(
-                '하루 소정 근로 시간과 출근 가능 시간대를 정합니다. 이 시간대 안에 출근하면 지각이 아닙니다.',
-              ),
+              Text('하루 소정 근로 시간과 출근 가능 시간대를 정합니다. 이 시간대 안에 출근하면 지각이 아닙니다.'),
               const SizedBox(height: 12),
 
               Container(
@@ -189,23 +187,69 @@ class _SetWorkTimeViewState extends State<SetWorkTimeView > {
                         color: AppColors.inkFaint,
                       ),
                     ),
-
                   ],
                 ),
               ),
+              const SizedBox(height: 16),
+
+              Text(
+                '출근 가능 시간대',
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: AppColors.inkMuted,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 8),
 
               Row(
                 children: [
-                  _buildTimeSlotButton(0, '06:00 ~ 09:00'),
-                  const SizedBox(width: 8),
-                  _buildTimeSlotButton(1, '08:00 ~ 11:00'),
-                  const SizedBox(width: 8),
-                  _buildTimeSlotButton(2, '10:00 ~ 13:00'),
+                  _buildTimeSlotButton(0, '오전 8시'),
+                  const SizedBox(width: 10),
+                  _buildTimeSlotButton(1, '오전 9시'),
+                  const SizedBox(width: 10),
+                  _buildTimeSlotButton(10, '오전 10시'),
                 ],
+              ),
+              const SizedBox(height: 8),
+
+              Text(
+                '설정한 출근 시간의 1시간 전부터 정상 출근으로 기록돼요. '
+                '최초 설정 후 한 번 더 수정할 수 있으며, 이후에는 월 1회 변경할 수 있어요.',
               ),
             ],
           ),
-        )
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(28, 12, 28, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CommonButton(
+              text: '다음',
+              onPressed: () {
+                context.go('/signup/workplace/worktime/goal');
+              },
+              version: ButtonVersion.normal,
+              status: WorkStatus.beforeWork,
+            ),
+            // const SizedBox(height: 8),
+            Center(
+              child: TextButton(
+                onPressed: () {
+                  context.go('/');
+                },
+                child: Text(
+                  '건너뛰고 시작하기',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: AppColors.inkFaint,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+        ),
       ),
     );
   }
@@ -223,22 +267,22 @@ class _SetWorkTimeViewState extends State<SetWorkTimeView > {
         },
         borderRadius: BorderRadius.circular(12),
         child: Container(
-          height: 50,
+          height: 60,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: isSelected
                 ? AppColors.primary.withValues(alpha: 0.06)
-                : Colors.transparent,
+                : AppColors.card,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isSelected ? AppColors.primary : Colors.grey.shade300,
             ),
           ),
           child: Text(
-            '${time}m',
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: isSelected ? AppColors.primary : AppColors.inkFaint,
-              fontWeight: FontWeight.w800,
+            '${time}',
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: isSelected ? AppColors.primary : AppColors.ink,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
@@ -248,19 +292,17 @@ class _SetWorkTimeViewState extends State<SetWorkTimeView > {
 }
 
 class _WorkHourButton extends StatelessWidget {
-  const _WorkHourButton({
-    required this.icon,
-    required this.onPressed,
-  });
+  const _WorkHourButton({required this.icon, required this.onPressed});
 
   final IconData icon;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
+    final double spacing = 72;
     return SizedBox(
-      width: 72,
-      height: 72,
+      width: spacing,
+      height: spacing,
       child: OutlinedButton(
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
