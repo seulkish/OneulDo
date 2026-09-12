@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_colors.dart';
 import '../widgets/status_badge.dart';
+import '../models/schedule.dart';
 
 enum ButtonVersion { login, normal, kakao, naver, google }
 
@@ -22,9 +23,7 @@ class CommonButton extends StatelessWidget {
     this.isEnabled = true,
     this.icon,
     this.status,
-  }) : assert(
-    version != ButtonVersion.normal || status != null, 'status 필요'
-  );
+  }) ;
 
   @override
   Widget build(BuildContext context) {

@@ -55,6 +55,16 @@ class MyPageView extends StatelessWidget {
 
             const SizedBox(height: 8,),
 
+            CommonButton(
+              text: '목표 설정',
+              onPressed: () {
+                context.go('/signup/workplace/worktime/goal');
+              },
+              version: ButtonVersion.login,
+            ),
+
+            const SizedBox(height: 8,),
+
             TextButton(
               child: Text('로그아웃'),
               onPressed: () {

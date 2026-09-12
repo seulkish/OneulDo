@@ -49,8 +49,7 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
 
     try {
       // GPS 확인
-      final serviceEnabled =
-      await Geolocator.isLocationServiceEnabled();
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
 
       if (!serviceEnabled) {
         _setLocationError('위치 서비스가 꺼져 있습니다.');
@@ -72,9 +71,7 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
 
       if (permission == LocationPermission.denied) {
         _setLocationError('위치 권한이 거부되었습니다.');
-        _showLocationSnackBar(
-          message: '위치 권한을 허용해주세요.',
-        );
+        _showLocationSnackBar(message: '위치 권한을 허용해주세요.');
         return;
       }
 
@@ -94,8 +91,7 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
 
       // 주소 변환
       try {
-        final placemarks =
-        await _geocoding.placemarkFromCoordinates(
+        final placemarks = await _geocoding.placemarkFromCoordinates(
           position.latitude,
           position.longitude,
         );
@@ -117,24 +113,20 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
         // 주소만 실패하면 좌표로 표시
         setState(() {
           _currentAddress =
-          '${position.latitude.toStringAsFixed(5)}, '
+              '${position.latitude.toStringAsFixed(5)}, '
               '${position.longitude.toStringAsFixed(5)}';
           _locationAccuracy = position.accuracy;
           _locationError = null;
         });
 
-        _showLocationSnackBar(
-          message: '주소를 불러오지 못해 좌표로 표시합니다.',
-        );
+        _showLocationSnackBar(message: '주소를 불러오지 못해 좌표로 표시합니다.');
       }
     } catch (e) {
       // GPS 위치 조회 자체가 실패한 경우
       debugPrint('위치 조회 오류: $e');
 
       _setLocationError('현재 위치를 불러오지 못했습니다.');
-      _showLocationSnackBar(
-        message: '위치 조회에 실패했습니다.',
-      );
+      _showLocationSnackBar(message: '위치 조회에 실패했습니다.');
     } finally {
       if (mounted) {
         setState(() {
@@ -143,6 +135,7 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
       }
     }
   }
+
   String _formatAddress(Placemark placemark) {
     final parts = [
       placemark.administrativeArea,
@@ -153,6 +146,7 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
 
     return parts.join(' ');
   }
+
   void _setLocationError(String message) {
     if (!mounted) return;
 
@@ -177,11 +171,11 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
           content: Text(message),
           action: actionLabel != null && onAction != null
               ? SnackBarAction(
-            label: actionLabel,
-            onPressed: () {
-              onAction();
-            },
-          )
+                  label: actionLabel,
+                  onPressed: () {
+                    onAction();
+                  },
+                )
               : null,
         ),
       );
@@ -283,7 +277,10 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
                 children: [
                   Text(
                     '현재 위치 기준 추천',
-                    style: theme.textTheme.bodyMedium?.copyWith(),
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: AppColors.inkMuted,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                   TextButton(
                     onPressed: _isLocationLoading ? null : _getCurrentLocation,
@@ -355,7 +352,12 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
               ),
               const SizedBox(height: 16),
 
-              Text('인증 반경'),
+              Text('인증 반경',
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: AppColors.inkMuted,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
               const SizedBox(height: 8),
 
               Row(
@@ -370,32 +372,40 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
               const SizedBox(height: 12),
 
               Text('반경을 벗어나면 출근이 기록되지 않습니다. 집 주변 300m는 근무지로 선택할 수 없습니다.'),
-              const SizedBox(height: 20),
+            ],
+          ),
+        ),
+      ),
 
-              CommonButton(
-                text: '다음',
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(28, 12, 28, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CommonButton(
+              text: '다음',
+              onPressed: () {
+                context.go('/signup/workplace/worktime');
+              },
+              version: ButtonVersion.normal,
+              status: WorkStatus.beforeWork,
+            ),
+            // const SizedBox(height: 8),
+            Center(
+              child: TextButton(
                 onPressed: () {
-                  context.go('/signup/workplace/worktime');
+                  context.go('/');
                 },
-                version: ButtonVersion.normal,
-                status: WorkStatus.beforeWork,
-              ),
-              // const SizedBox(height: 8),
-              Center(
-                child: TextButton(
-                  onPressed: () {
-                    context.go('/');
-                  },
-                  child: Text(
-                    '건너뛰고 시작하기',
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: AppColors.inkFaint,
-                    ),
+                child: Text(
+                  '건너뛰고 시작하기',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: AppColors.inkFaint,
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 10),
+          ],
         ),
       ),
     );

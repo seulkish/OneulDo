@@ -8,6 +8,7 @@ import '../views/login_view.dart';
 import '../views/signup_view.dart';
 import '../views/set_workplace_view.dart';
 import '../views/set_worktime_view.dart';
+import '../views/set_goal_view.dart';
 import '../views/career_view.dart';
 import '../views/leave_request_view.dart';
 import '../views/study_record_view.dart';
@@ -62,6 +63,12 @@ final router = GoRouter(
               path: 'worktime',
               name: 'setWorkTime',
               builder: (context, state) => const SetWorkTimeView(),
+              routes: [
+                GoRoute(
+                  path: 'goal',
+                  name: 'setGoal',
+                  builder: (context, state) => const SetGoalView(),)
+              ]
             )
           ]
         ),
