@@ -11,6 +11,8 @@ import '../widgets/position_badge.dart';
 
 import '../theme/app_colors.dart';
 import '../widgets/app_button.dart';
+import '../models/work_status.dart';
+import '../theme/work_status_style.dart';
 
 class SetGoalView extends StatefulWidget {
   const SetGoalView({super.key});

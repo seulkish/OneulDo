@@ -11,9 +11,17 @@ import '../views/set_worktime_view.dart';
 import '../views/set_goal_view.dart';
 import '../views/career_view.dart';
 import '../views/leave_request_view.dart';
+import '../views/leave_approval_view.dart';
 import '../views/study_record_view.dart';
 import '../views/my_page_view.dart';
 import '../views/landing_view.dart';
+import '../views/workplace_setting_view.dart';
+import '../views/worktime_setting_view.dart';
+import '../views/work_policy_setting_view.dart';
+import '../views/goal_setting_view.dart';
+import '../views/notification_view.dart';
+
+import '../models/work_status.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'root',
@@ -37,7 +45,9 @@ final GlobalKey<NavigatorState> _myPageNavigatorKey = GlobalKey<NavigatorState>(
 final router = GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/landing',
-  redirect: (context, state) {},
+  redirect: (context, state) {
+
+  },
   routes: [
     GoRoute(
       path: '/landing',
@@ -87,6 +97,14 @@ final router = GoRouter(
               path: '/',
               name: 'home',
               builder: (context, state) => const HomeView(),
+              routes: [
+                GoRoute(
+                  parentNavigatorKey: _rootNavigatorKey,
+                  path: 'notification',
+                  name: 'notification',
+                  builder: (context, state) => const NotificationView(),
+                ),
+              ]
             ),
           ],
         ),
@@ -96,7 +114,9 @@ final router = GoRouter(
             GoRoute(
               path: '/record',
               name: 'record',
-              builder: (context, state) => const StudyRecordView(),
+              builder: (context, state) {
+                return StudyRecordView();
+              }
             ),
           ],
         ),
@@ -107,6 +127,13 @@ final router = GoRouter(
               path: '/leave',
               name: 'leave',
               builder: (context, state) => const LeaveRequestView(),
+              routes: [
+                GoRoute(
+                  path: '/approval',
+                  name: 'approval',
+                  builder: (context, state) => const LeaveApprovalView(),
+                ),
+              ]
             ),
           ],
         ),
@@ -116,7 +143,12 @@ final router = GoRouter(
             GoRoute(
               path: '/career',
               name: 'career',
-              builder: (context, state) => const CareerView(),
+              //builder: (context, state) => const CareerView(status: WorkStatus.beforeWork,),
+              builder: (context, state) {
+                final status =
+                    state.extra as WorkStatus? ?? WorkStatus.beforeWork;
+                return CareerView(status: status);
+              },
             ),
           ],
         ),
@@ -124,9 +156,31 @@ final router = GoRouter(
           navigatorKey: _myPageNavigatorKey,
           routes: [
             GoRoute(
-              path: '/my_page',
+              path: '/my-page',
               name: 'myPage',
               builder: (context, state) => const MyPageView(),
+              routes: [
+                GoRoute(
+                  path: 'workplace',
+                  name: 'myPageWorkplace',
+                  builder: (context, state) => const WorkplaceSettingView(),
+                ),
+                GoRoute(
+                  path: 'worktime',
+                  name: 'myPageWorktime',
+                  builder: (context, state) => const WorktimeSettingView(),
+                ),
+                GoRoute(
+                  path: 'work-policy',
+                  name: 'myPageWorkPolicy',
+                  builder: (context, state) => const WorkPolicySettingView(),
+                ),
+                GoRoute(
+                  path: 'goal',
+                  name: 'myPageGoal',
+                  builder: (context, state) => const GoalSettingView(),
+                ),
+              ]
             ),
           ],
         ),
