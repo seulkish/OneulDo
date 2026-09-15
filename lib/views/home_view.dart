@@ -8,10 +8,11 @@ import '../widgets/add_schedule_bottom_sheet.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/confirm_dialog.dart';
-import '../widgets/status_badge.dart';
-import '../widgets/position_badge.dart';
+import '../widgets/app_bar.dart';
 import '../widgets/employee_profile_header.dart';
 import '../models/schedule.dart';
+import '../models/work_status.dart';
+import '../theme/work_status_style.dart';
 
 class HomeView extends StatefulWidget {
   const HomeView({super.key});
@@ -123,104 +124,11 @@ class _HomeViewState extends State<HomeView> {
     const place = '중앙도서관 3층 열람실';
     const progress = 0.05; // 0.0 ~ 1.0
 
-    final Color progressColor = switch (status) {
-      WorkStatus.beforeWork => AppColors.primary,
-      WorkStatus.working => AppColors.positive,
-      WorkStatus.fieldWork => AppColors.fieldPurple,
-      WorkStatus.completed => AppColors.inkMuted,
-      WorkStatus.vacation => AppColors.vacation,
-      WorkStatus.overtime => AppColors.liveGreen,
-      WorkStatus.absent => AppColors.taskRed,
-      null => AppColors.primary,
-    };
-
-    final BadgeColors badgeColors = switch (status) {
-      WorkStatus.beforeWork => AppBadges.normal,
-      WorkStatus.working => AppBadges.normal,
-      WorkStatus.fieldWork => AppBadges.fieldWork,
-      WorkStatus.completed => AppBadges.done,
-      WorkStatus.vacation => AppBadges.vacation,
-      WorkStatus.overtime => AppBadges.overtime,
-      WorkStatus.absent => AppBadges.absent,
-      null => AppBadges.normal,
-    };
-
     return Scaffold(
       backgroundColor: AppColors.canvassub,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        shape: ShapedInputBorder(
-          shape: Border.all(),
-          borderSide: BorderSide(color: Colors.black12),
-        ),
-        elevation: 15,
-        toolbarHeight: 100,
-        automaticallyImplyLeading: false,
-        titleSpacing: 28,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          // mainAxisSize: MainAxisSize.max,
-          children: [
-            Text(
-              '2026. 09. 02 (수)',
-              style: textTheme.titleSmall?.copyWith(color: AppColors.inkFaint),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '좋은 아침입니다',
-              style: textTheme.headlineSmall?.copyWith(
-                fontFamily: 'GmarketSans',
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '매일 매일, 성실하게 그리고 꾸준하게도',
-              style: textTheme.labelSmall?.copyWith(color: AppColors.inkFaint),
-            ),
-          ],
-        ),
-        actions: [
-          // 사원 Badge
-          PositionBadge(position: '인턴', colors: badgeColors),
-          const SizedBox(width: AppSpacing.sm),
-
-          // 알림 아이콘 + 알림 갯수 Badge
-          Padding(
-            padding: const EdgeInsets.only(right: 20),
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                IconButton(
-                  onPressed: () {},
-                  icon: Icon(Icons.notifications_none),
-                ),
-                Positioned(
-                  top: 3,
-                  right: 2,
-                  child: Container(
-                    width: 20,
-                    height: 20,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Colors.redAccent,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 1),
-                    ),
-                    child: const Text(
-                      '2',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+      appBar: CommonAppBar(
+          title: '좋은 아침입니다',
+          subtitle: '매일 매일, 성실하게 그리고 꾸준하게도'
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -298,7 +206,7 @@ class _HomeViewState extends State<HomeView> {
                               minHeight: 12,
                               backgroundColor: AppColors.fill,
                               valueColor: AlwaysStoppedAnimation<Color>(
-                                progressColor,
+                                status.progressColor,
                               ),
                             ),
                           ),

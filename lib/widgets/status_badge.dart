@@ -1,51 +1,25 @@
 // filename: ../widgets/status_badge.dart
 
 import 'package:flutter/material.dart';
-import 'package:oneul/theme/app_colors.dart';
-import '../theme/app_theme.dart';
 
-enum WorkStatus { beforeWork, working, fieldWork, completed, vacation, overtime, absent }
+import '../models/work_status.dart';
+import '../theme/work_status_style.dart';
 
 class StatusBadge extends StatelessWidget {
   final WorkStatus status;
+  final String? label;
 
-  const StatusBadge({super.key, required this.status});
+  const StatusBadge({
+    super.key,
+    required this.status,
+    this.label,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final String text;
-    final BadgeColors colors;
+    final text = label ?? status.label;
+    final colors = status.badgeColors;
     final textTheme = Theme.of(context).textTheme;
-
-    switch (status) {
-      case WorkStatus.beforeWork:
-        text = '출근 전';
-        colors = AppBadges.notStarted;
-      case WorkStatus.working:
-        text = '근무 중';
-        colors = AppBadges.normal;
-
-      case WorkStatus.fieldWork:
-        text = '외근 중';
-        colors = AppBadges.fieldWork;
-
-      case WorkStatus.completed:
-        text = '퇴근 완료';
-        colors = AppBadges.done;
-
-      case WorkStatus.vacation:
-        text = '휴가 중';
-        colors = AppBadges.vacation;
-
-      case WorkStatus.overtime:
-        text = '야근 중';
-        colors = AppBadges.overtime;
-
-      case WorkStatus.absent:
-        text = '결근';
-        colors = AppBadges.absent;
-    }
-    ;
 
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -53,14 +27,17 @@ class StatusBadge extends StatelessWidget {
         color: colors.background,
         borderRadius: BorderRadius.circular(999),
       ),
-      width: text.length * 20,
+      // width: status.label.length * 20,
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             text,
-            style: textTheme.labelSmall,
+            style: textTheme.labelSmall?.copyWith(
+              color: colors.foreground,
+            ),
           ),
-          const SizedBox(width: 6,),
+          const SizedBox(width: 6),
           Container(
             width: 7,
             height: 7,

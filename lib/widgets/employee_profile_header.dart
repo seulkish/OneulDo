@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 import '../widgets/status_badge.dart';
+import '../models/work_status.dart';
+import '../theme/work_status_style.dart';
 
 class EmployeeProfileHeader extends StatelessWidget {
   final WorkStatus status;

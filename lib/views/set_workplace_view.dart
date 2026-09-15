@@ -6,6 +6,8 @@ import 'package:oneul/widgets/status_badge.dart';
 
 import '../theme/app_colors.dart';
 import '../widgets/app_button.dart';
+import '../models/work_status.dart';
+import '../theme/work_status_style.dart';
 
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
