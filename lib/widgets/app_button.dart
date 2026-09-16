@@ -80,12 +80,30 @@ class CommonButton extends StatelessWidget {
       width: double.infinity,
       height: 60,
       child: ElevatedButton(
-        onPressed: isEnabled ? onPressed : null,
+        onPressed: isEnabled && onPressed != null ? onPressed : null,
         style: themeStyle?.copyWith(
-          backgroundColor: WidgetStatePropertyAll(backgroundColor),
-          foregroundColor: WidgetStatePropertyAll(foregroundColor),
+          backgroundColor: WidgetStateProperty.resolveWith<Color>(
+                (states) {
+              if (states.contains(WidgetState.disabled)) {
+                return AppColors.fill;
+              }
+              return backgroundColor;
+            },
+          ),
+          foregroundColor: WidgetStateProperty.resolveWith<Color>(
+                (states) {
+              if (states.contains(WidgetState.disabled)) {
+                return AppColors.inkDisabled;
+              }
+              return foregroundColor;
+            },
+          ),
           side: WidgetStatePropertyAll(borderSide),
-          elevation: const WidgetStatePropertyAll(3),
+          elevation: WidgetStateProperty.resolveWith<double>(
+                (states) {
+              return states.contains(WidgetState.disabled) ? 0 : 3;
+            },
+          ),
           shadowColor: const WidgetStatePropertyAll(
             Color(0x40000000),
           ),
@@ -102,8 +120,9 @@ class CommonButton extends StatelessWidget {
               text,
               style: theme.textTheme.labelLarge?.copyWith(
                 fontSize: 20,
-                // fontWeight: FontWeight.w600,
-                color: foregroundColor,
+                color: isEnabled
+                    ? foregroundColor
+                    : AppColors.inkDisabled,
               ),
             ),
           ],

@@ -22,6 +22,81 @@ class HomeView extends StatefulWidget {
 }
 
 class _HomeViewState extends State<HomeView> {
+  WorkStatus _status = WorkStatus.beforeWork;
+  double _progress = 0.1;
+
+  // TODO: 실제 시간 및 GPS 검사 결과로 교체
+  bool _isWithinWorkTime = true;
+  bool _isWithinWorkplace = true;
+
+  bool get _isWorking => _status == WorkStatus.working;
+
+  bool get _canStartWork {
+    return _status == WorkStatus.beforeWork &&
+        _isWithinWorkTime &&
+        _isWithinWorkplace;
+  }
+
+  String? get _unavailableReason {
+    if (_status == WorkStatus.vacation) {
+      return '오늘은 휴가 일정으로 출근할 수 없습니다.';
+    }
+
+    if (_status == WorkStatus.completed) {
+      return '오늘의 근무가 이미 완료되었습니다.';
+    }
+
+    if (_status != WorkStatus.beforeWork) {
+      return null;
+    }
+
+    if (!_isWithinWorkTime) {
+      return '출근 가능 시간대가 아닙니다.';
+    }
+
+    if (!_isWithinWorkplace) {
+      return '지정된 근무지 반경 안에서만 출근할 수 있습니다.';
+    }
+
+    return null;
+  }
+
+  void _confirmStartWork() {
+    if (!_canStartWork) return;
+
+    showConfirmDialog(
+      context: context,
+      title: '출근 확인',
+      message: '현재 위치에서 출근 처리할까요?',
+      confirmText: '출근하기',
+      onConfirm: () {
+        setState(() {
+          _status = WorkStatus.working;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('출근 처리가 완료되었습니다.'),
+          ),
+        );
+      },
+    );
+  }
+
+  void _confirmEndWork() {
+    showConfirmDialog(
+      context: context,
+      title: '퇴근 확인',
+      message: '오늘 근무를 종료하고 퇴근 처리할까요?',
+      confirmText: '퇴근하기',
+      onConfirm: () {
+        setState(() {
+          _status = WorkStatus.completed;
+        });
+      },
+    );
+  }
+
   final List<Schedule> schedules = [
     const Schedule(
       time: '09:00',
@@ -118,11 +193,11 @@ class _HomeViewState extends State<HomeView> {
     );
 
     // TODO: 실제 데이터 연결 지점
-    const status = WorkStatus.vacation;
+    final status = _status;
     const targetTime = '09:00';
     const window = '08:00 ~ 11:00';
     const place = '중앙도서관 3층 열람실';
-    const progress = 0.05; // 0.0 ~ 1.0
+    final progress = _progress; // 0.0 ~ 1.0
 
     return Scaffold(
       backgroundColor: AppColors.canvassub,
@@ -164,7 +239,7 @@ class _HomeViewState extends State<HomeView> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '목표 출근 시각',
+                            _isWorking ? '출근 시각' : '목표 출근 시각',
                             style: textTheme.bodyLarge?.copyWith(
                               color: AppColors.inkFaint,
                             ),
@@ -217,7 +292,11 @@ class _HomeViewState extends State<HomeView> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
-                                '소정 근로 4시간 중 ${(progress * 100).toInt()}%',
+                                _isWorking
+                                    ? '현재 근무가 진행 중입니다'
+                                    : _status == WorkStatus.completed
+                                      ? '오늘 근무를 완료했습니다'
+                                      : '소정 근로 4시간 중 ${(progress * 100).toInt()}%',
                                 style: textTheme.bodyMedium?.copyWith(
                                   color: AppColors.inkFaint,
                                 ),
@@ -235,36 +314,17 @@ class _HomeViewState extends State<HomeView> {
 
                           // AppCard 안에 CommonButton 배치
                           CommonButton(
-                            text: '출근하기',
+                            text: _isWorking ? '퇴근하기'
+                                : _canStartWork ? '출근하기' : '출근할 수 없어요',
                             version: ButtonVersion.normal,
                             status: status,
+                            isEnabled: _isWorking || _canStartWork,
                             onPressed: () {
                               // TODO: 출근 처리
-                              showConfirmDialog(
-                                context: context,
-                                title: '출근 확인',
-                                message: '현재 위치에서 출근 처리할까요?',
-                                confirmText: '출근하기',
-                                onConfirm: () {
-                                  debugPrint('출근 확인 버튼 클릭');
-                                },
-                              );
+                              _isWorking ? _confirmEndWork() : _confirmStartWork();
                             },
                           ),
-                          // CommonButton(
-                          //   text: '퇴근하기',
-                          //   onPressed: () {
-                          //     showConfirmDialog(
-                          //       context: context,
-                          //       title: '퇴근 확인',
-                          //       message: '오늘 근무를 종료하고 퇴근 처리할까요?',
-                          //       confirmText: '퇴근하기',
-                          //       onConfirm: () {
-                          //         debugPrint('퇴근 확인 버튼 클릭');
-                          //       },
-                          //     );
-                          //   },
-                          // ),
+
                         ],
                       ),
                     ),
@@ -293,7 +353,7 @@ class _HomeViewState extends State<HomeView> {
 
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
-                      children: const [
+                      children: [
                         Expanded(
                           child: _WeeklyBar(
                             day: '9/7',
