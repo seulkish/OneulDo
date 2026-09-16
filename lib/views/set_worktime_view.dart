@@ -1,14 +1,10 @@
 // filename: ../views/set_worktime_view.dart
 import 'package:flutter/material.dart';
-
 import 'package:go_router/go_router.dart';
-import 'package:oneul/widgets/common_text_field.dart';
-import 'package:oneul/widgets/status_badge.dart';
 
 import '../theme/app_colors.dart';
 import '../widgets/app_button.dart';
 import '../models/work_status.dart';
-import '../theme/work_status_style.dart';
 
 class SetWorkTimeView extends StatefulWidget {
   const SetWorkTimeView({super.key});
