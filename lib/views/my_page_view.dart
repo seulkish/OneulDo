@@ -179,11 +179,11 @@ class _SettingsCard extends StatelessWidget {
             onTap: onWorkTimeTap,
           ),
           const Divider(height: 1),
-          _SettingsMenuItem(
-            title: '근태 구분과 처리 기준',
-            description: '정상 출근 · 지각 · 외근/출장 · 휴가 · 추가 근무',
-            onTap: onWorkPolicyTap,
-          ),
+          // _SettingsMenuItem(
+          //   title: '근태 구분과 처리 기준',
+          //   description: '정상 출근 · 지각 · 외근/출장 · 휴가 · 추가 근무',
+          //   onTap: onWorkPolicyTap,
+          // ),
           const Divider(height: 1),
           _SettingsMenuItem(
             title: '준비 목표',
@@ -274,7 +274,7 @@ class _NotificationSettingsCardState extends State<_NotificationSettingsCard> {
       decoration: BoxDecoration(
         color: AppColors.card,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.fill),
+        border: Border.all(color: const Color(0xFFE1E3E6),),
       ),
       child: Column(
         children: [

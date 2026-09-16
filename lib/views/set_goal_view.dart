@@ -3,16 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:go_router/go_router.dart';
-import '../widgets/app_card.dart';
-import '../widgets/common_text_field.dart';
 import '../widgets/confirm_dialog.dart';
-import '../widgets/status_badge.dart';
 import '../widgets/position_badge.dart';
 
 import '../theme/app_colors.dart';
 import '../widgets/app_button.dart';
 import '../models/work_status.dart';
-import '../theme/work_status_style.dart';
 
 class SetGoalView extends StatefulWidget {
   const SetGoalView({super.key});

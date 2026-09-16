@@ -25,11 +25,38 @@ class _HomeViewState extends State<HomeView> {
   WorkStatus _status = WorkStatus.beforeWork;
   double _progress = 0.1;
 
+  Timer? _workTimer;
+  DateTime? _workStartedAt;
+  DateTime? _workEndedAt;
+  Duration _workedDuration = Duration.zero;
+  String get _formattedWorkedTime {
+    final hours = _workedDuration.inHours.toString().padLeft(2, '0');
+    final minutes = (_workedDuration.inMinutes % 60).toString().padLeft(2, '0');
+    final seconds = (_workedDuration.inSeconds % 60).toString().padLeft(2, '0');
+
+    return '$hours:$minutes:$seconds';
+  }
+  String _formatClockTime(DateTime? time) {
+    if (time == null) return '--:--';
+
+    final hour = time.hour.toString().padLeft(2, '0');
+    final minute = time.minute.toString().padLeft(2, '0');
+
+    return '$hour:$minute';
+  }
+
+  String get _formattedTotalWorkTime {
+    final hours = _workedDuration.inHours;
+    final minutes = _workedDuration.inMinutes % 60;
+
+    return '${hours}시간 ${minutes}분';
+  }
+
   // TODO: 실제 시간 및 GPS 검사 결과로 교체
   bool _isWithinWorkTime = true;
   bool _isWithinWorkplace = true;
 
-  bool get _isWorking => _status == WorkStatus.working;
+  bool get _isWorking => _status == WorkStatus.working || _status == WorkStatus.overtime;
 
   bool get _canStartWork {
     return _status == WorkStatus.beforeWork &&
@@ -74,11 +101,11 @@ class _HomeViewState extends State<HomeView> {
           _status = WorkStatus.working;
         });
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('출근 처리가 완료되었습니다.'),
-          ),
-        );
+        _startWorkTimer();
+
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('출근 처리가 완료되었습니다.')));
       },
     );
   }
@@ -90,8 +117,30 @@ class _HomeViewState extends State<HomeView> {
       message: '오늘 근무를 종료하고 퇴근 처리할까요?',
       confirmText: '퇴근하기',
       onConfirm: () {
+        final endedAt = DateTime.now();
+        _workTimer?.cancel();
         setState(() {
+          if (_workStartedAt != null) {
+            _workedDuration =
+                endedAt.difference(_workStartedAt!);
+          }
+
+          _workEndedAt = endedAt;
           _status = WorkStatus.completed;
+        });
+      },
+    );
+  }
+
+  void _confirmStartOvertime() {
+    showConfirmDialog(
+      context: context,
+      title: '추가 근무 확인',
+      message: '추가 근무 상태로 전환할까요?',
+      confirmText: '전환하기',
+      onConfirm: () {
+        setState(() {
+          _status = WorkStatus.overtime;
         });
       },
     );
@@ -147,16 +196,13 @@ class _HomeViewState extends State<HomeView> {
   }
 
   Future<void> _showAddScheduleSheet() async {
-    final Schedule? newSchedule =
-    await showModalBottomSheet(
+    final Schedule? newSchedule = await showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(24),
-        ),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (_)=> AddScheduleBottomSheet(),
+      builder: (_) => AddScheduleBottomSheet(),
     );
 
     if (newSchedule == null) return;
@@ -164,6 +210,21 @@ class _HomeViewState extends State<HomeView> {
     setState(() {
       schedules.add(newSchedule);
       schedules.sort((a, b) => a.time.compareTo(b.time));
+    });
+  }
+
+  void _startWorkTimer() {
+    _workStartedAt = DateTime.now();
+    _workedDuration = Duration.zero;
+
+    _workTimer?.cancel();
+
+    _workTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted || _workStartedAt == null) return;
+
+      setState(() {
+        _workedDuration = DateTime.now().difference(_workStartedAt!);
+      });
     });
   }
 
@@ -187,14 +248,13 @@ class _HomeViewState extends State<HomeView> {
     // 포인트 관련
     final int point = generalSchedules
         .where((schedule) => schedule.status == ScheduleStatus.completed)
-        .fold<int>(
-      0,
-          (total, schedule) => total + schedule.status.point,
-    );
+        .fold<int>(0, (total, schedule) => total + schedule.status.point);
 
     // TODO: 실제 데이터 연결 지점
     final status = _status;
     const targetTime = '09:00';
+    const workedTime = '03:12:11'; // 추후 누적 근무 시간 = 현재 시각 - 출근 시각
+    const actualStartTime = '15:41';
     const window = '08:00 ~ 11:00';
     const place = '중앙도서관 3층 열람실';
     final progress = _progress; // 0.0 ~ 1.0
@@ -202,8 +262,8 @@ class _HomeViewState extends State<HomeView> {
     return Scaffold(
       backgroundColor: AppColors.canvassub,
       appBar: CommonAppBar(
-          title: '좋은 아침입니다',
-          subtitle: '매일 매일, 성실하게 그리고 꾸준하게도'
+        title: '좋은 아침입니다',
+        subtitle: '매일 매일, 성실하게 그리고 꾸준하게도',
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -239,7 +299,11 @@ class _HomeViewState extends State<HomeView> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            _isWorking ? '출근 시각' : '목표 출근 시각',
+                            _status == WorkStatus.completed
+                              ? '오늘 총 근무 · +60P 적립'
+                              : _isWorking
+                                  ? '누적 근무 시간'
+                                  : '목표 출근 시각',
                             style: textTheme.bodyLarge?.copyWith(
                               color: AppColors.inkFaint,
                             ),
@@ -248,7 +312,11 @@ class _HomeViewState extends State<HomeView> {
                           const SizedBox(height: 8),
 
                           Text(
-                            targetTime,
+                            _status == WorkStatus.completed
+                                ? _formattedTotalWorkTime
+                                : _isWorking
+                                ? _formattedWorkedTime
+                                : targetTime,
                             style: textTheme.displaySmall?.copyWith(
                               color: AppColors.ink,
                               fontWeight: FontWeight.bold,
@@ -261,13 +329,24 @@ class _HomeViewState extends State<HomeView> {
                             children: [
                               Expanded(
                                 child: _InfoBox(
-                                  title: '출근 가능 시간대',
-                                  content: window,
+                                  title: _isWorking || _status == WorkStatus.completed
+                                      ? '출근 시각'
+                                      : '출근 가능 시간대',
+                                  content: _isWorking || _status == WorkStatus.completed
+                                      ? _formatClockTime(_workStartedAt)
+                                      : window,
                                 ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
-                                child: _InfoBox(title: '근무지', content: place),
+                                child: _InfoBox(
+                                  title: _status == WorkStatus.completed
+                                      ? '퇴근 시각'
+                                      : '근무지',
+                                  content: _status == WorkStatus.completed
+                                      ? _formatClockTime(_workEndedAt)
+                                      : place,
+                                ),
                               ),
                             ],
                           ),
@@ -293,16 +372,16 @@ class _HomeViewState extends State<HomeView> {
                             children: [
                               Text(
                                 _isWorking
-                                    ? '현재 근무가 진행 중입니다'
+                                    ? '소정 근로 4시간 중 ${(progress * 100).toInt()}%'
                                     : _status == WorkStatus.completed
-                                      ? '오늘 근무를 완료했습니다'
-                                      : '소정 근로 4시간 중 ${(progress * 100).toInt()}%',
+                                    ? '오늘 근무를 완료했습니다'
+                                    : '출근 후 근무 시간이 기록됩니다',
                                 style: textTheme.bodyMedium?.copyWith(
                                   color: AppColors.inkFaint,
                                 ),
                               ),
                               Text(
-                                '4시간 0분 남음',
+                                _isWorking ? '0시간 47분 남음' : '4시간 0분 남음',
                                 style: textTheme.bodyMedium?.copyWith(
                                   color: AppColors.inkFaint,
                                 ),
@@ -312,19 +391,111 @@ class _HomeViewState extends State<HomeView> {
 
                           const SizedBox(height: 28),
 
-                          // AppCard 안에 CommonButton 배치
-                          CommonButton(
-                            text: _isWorking ? '퇴근하기'
-                                : _canStartWork ? '출근하기' : '출근할 수 없어요',
-                            version: ButtonVersion.normal,
-                            status: status,
-                            isEnabled: _isWorking || _canStartWork,
-                            onPressed: () {
-                              // TODO: 출근 처리
-                              _isWorking ? _confirmEndWork() : _confirmStartWork();
-                            },
-                          ),
+                          // 출근/퇴근하기 버튼
+                          if (_isWorking) ...[
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: SizedBox(
+                                    height: 60,
+                                    child: OutlinedButton(
+                                      onPressed: () {
+                                        // TODO: 근무 상태 변경 처리
+                                        context.go('/leave');
+                                      },
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: AppColors.ink,
+                                        side: BorderSide(
+                                          color: AppColors.inkMuted.withValues(
+                                            alpha: 0.3,
+                                          ),
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            30,
+                                          ),
+                                        ),
+                                      ),
+                                      child: const Text('근무 변경'),
+                                    ),
+                                  ),
+                                ),
 
+                                const SizedBox(width: 12),
+
+                                Expanded(
+                                  flex: 2,
+                                  child: CommonButton(
+                                    text: '퇴근하기',
+                                    version: ButtonVersion.normal,
+                                    status: status,
+                                    onPressed: _confirmEndWork,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ] else ...[
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: SizedBox(
+                                    height: 60,
+                                    child: OutlinedButton(
+                                      onPressed: () {
+                                        // TODO: 근무 상태 변경 처리
+                                        _status == WorkStatus.overtime
+                                            ? null
+                                            : () {
+                                          setState(() {
+                                            _status = WorkStatus.overtime;
+                                          });
+                                        };
+                                      },
+                                      style: OutlinedButton.styleFrom(
+                                        backgroundColor: AppColors.primary,
+                                        foregroundColor: AppColors.ink,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            30,
+                                          ),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        _status == WorkStatus.overtime
+                                            ? '추가 근무 중'
+                                            : '추가 근무',
+                                        style: _status != WorkStatus.overtime
+                                            ? textTheme.labelLarge?.copyWith(fontSize: 18,color: AppColors.fill, fontWeight: FontWeight.w500)
+                                            : null
+                                      ),
+                                    ),
+                                  ),
+                                ),
+
+                                const SizedBox(width: 12),
+
+                                Expanded(
+                                  flex: 2,
+                                  child: CommonButton(
+                                    text: _isWorking
+                                        ? '퇴근하기'
+                                        : _canStartWork
+                                        ? '출근하기'
+                                        : '출근할 수 없어요',
+                                    version: ButtonVersion.normal,
+                                    status: status,
+                                    isEnabled: _isWorking || _canStartWork,
+                                    onPressed: () {
+                                      // TODO: 출근 처리
+                                      _isWorking
+                                          ? _confirmEndWork()
+                                          : _confirmStartWork();
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -453,7 +624,6 @@ class _HomeViewState extends State<HomeView> {
                               color: AppColors.ink,
                             ),
                           ),
-
                         ),
                       ],
                     ),
@@ -522,6 +692,13 @@ class _HomeViewState extends State<HomeView> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    // TODO: implement dispose
+    _workTimer?.cancel();
+    super.dispose();
   }
 }
 
@@ -654,7 +831,7 @@ class _ScheduleItem extends StatefulWidget {
     required this.time,
     required this.title,
     required this.status,
-    this.onCompleted
+    this.onCompleted,
   });
 
   @override
