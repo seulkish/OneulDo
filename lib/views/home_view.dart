@@ -437,43 +437,44 @@ class _HomeViewState extends State<HomeView> {
                           ] else ...[
                             Row(
                               children: [
-                                Expanded(
-                                  child: SizedBox(
-                                    height: 60,
-                                    child: OutlinedButton(
-                                      onPressed: () {
-                                        // TODO: 근무 상태 변경 처리
-                                        _status == WorkStatus.overtime
-                                            ? null
-                                            : () {
-                                          setState(() {
-                                            _status = WorkStatus.overtime;
-                                          });
-                                        };
-                                      },
-                                      style: OutlinedButton.styleFrom(
-                                        backgroundColor: AppColors.primary,
-                                        foregroundColor: AppColors.ink,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            30,
+                                if (_status != WorkStatus.beforeWork) ...[
+                                  Expanded(
+                                    child: SizedBox(
+                                      height: 60,
+                                      child: OutlinedButton(
+                                        onPressed: () {
+                                          // TODO: 근무 상태 변경 처리
+                                          _status == WorkStatus.completed
+                                              ? () {
+                                              // context.go('/');
+                                              setState(() {
+                                              _status = WorkStatus.overtime;
+                                            });
+                                          }
+                                              : null;
+                                        },
+                                        style: OutlinedButton.styleFrom(
+                                          backgroundColor: AppColors.primary,
+                                          foregroundColor: AppColors.ink,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              30,
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                      child: Text(
-                                        _status == WorkStatus.overtime
-                                            ? '추가 근무 중'
-                                            : '추가 근무',
-                                        style: _status != WorkStatus.overtime
-                                            ? textTheme.labelLarge?.copyWith(fontSize: 18,color: AppColors.fill, fontWeight: FontWeight.w500)
-                                            : null
+                                        child: Text(
+                                          _status == WorkStatus.completed
+                                              ? '추가 근무'
+                                              : '',
+                                          style: _status != WorkStatus.overtime
+                                              ? textTheme.labelLarge?.copyWith(fontSize: 18,color: AppColors.fill, fontWeight: FontWeight.w500)
+                                              : null
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-
-                                const SizedBox(width: 12),
-
+                                  const SizedBox(width: 12),
+                                ],
                                 Expanded(
                                   flex: 2,
                                   child: CommonButton(

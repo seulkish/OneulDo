@@ -2,12 +2,118 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:firebase_auth/firebase_auth.dart';
+import '../services/firebase_auth_service.dart';
+import '../services/firestore_service.dart';
+
 import '../theme/app_colors.dart';
-import '../widgets/app_button.dart';
 import '../widgets/app_bar.dart';
 
-class MyPageView extends StatelessWidget {
+class MyPageView extends StatefulWidget {
   const MyPageView({super.key});
+
+  @override
+  State<MyPageView> createState() => _MyPageViewState();
+}
+
+class _MyPageViewState extends State<MyPageView> {
+  final FirebaseAuthService _auth = FirebaseAuthService();
+  final FirestoreService  _fs = FirestoreService();
+  late Future<Map<String, dynamic>?> _userFuture;
+
+  @override
+  void initState() {
+    // TODO: implement initState
+    super.initState();
+    _userFuture = _fs.readUser();
+  }
+
+  Future<void> _signOut() async {
+    try {
+      await _auth.signOut();
+
+      if (!mounted) return;
+
+      context.go('/login');
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('로그아웃에 실패했습니다.'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _withdrawAccount() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+
+    debugPrint('현재 로그인 UID: ${currentUser?.uid}');
+    debugPrint('현재 로그인 이메일: ${currentUser?.email}');
+
+    if (currentUser == null) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('로그인 세션이 없습니다. 다시 로그인해 주세요.'),
+        ),
+      );
+
+      context.go('/login');
+      return;
+    }
+
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('회원 탈퇴'),
+          content: const Text(
+            '계정과 사용자 정보가 모두 삭제됩니다.\n정말 탈퇴하시겠어요?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('취소'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('탈퇴'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldDelete != true) return;
+
+    try {
+      await _fs.deleteUser();
+      await _auth.deleteAccount();
+
+      if (!mounted) return;
+
+      context.go('/login');
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+
+      final message = e.code == 'requires-recent-login'
+          ? '보안을 위해 다시 로그인한 후 탈퇴해 주세요.'
+          : '회원 탈퇴에 실패했습니다.';
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('회원 탈퇴 실패: $e')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +129,18 @@ class MyPageView extends StatelessWidget {
         ),
         child: Column(
           children: [
-            const _ProfileSummaryCard(),
+            FutureBuilder(future: _userFuture, builder: (context, snapshot) {
+              final userData = snapshot.data;
+              if (userData == null) {
+                return const Text('저장된 사용자 정보가 없습니다.');
+              }
+              return _ProfileSummaryCard(
+                nickname: userData['nickname'] as String? ?? '사용자',
+                email: userData['email'] as String? ?? '',
+                profileImageUrl: userData['profileImageUrl'] as String?,
+              );
+            },
+            ),
             const SizedBox(height: 16),
 
             _SettingsCard(
@@ -44,27 +161,28 @@ class MyPageView extends StatelessWidget {
 
             const _NotificationSettingsCard(),
 
-            Center(
-              child: TextButton(
-                child: Text('로그아웃'),
-                onPressed: () {
-                  // firebase 연동 후 signOut() 추가 예정
-                  // await FirebaseAuth.instance.signOut();
-                  context.go('/login');
-                },
-              ),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                TextButton(
+                  onPressed: _signOut,
+                  child: Text('로그아웃'),
+                ),
+                TextButton(
+                  onPressed: _withdrawAccount,
+                  child: const Text('회원 탈퇴'),
+                ),
+              ]
             ),
 
-            Center(
-              child: TextButton(
-                child: Text('목표 설정 바로가기'),
-                onPressed: () {
-                  // firebase 연동 후 signOut() 추가 예정
-                  // await FirebaseAuth.instance.signOut();
-                  context.go('/signup/workplace/worktime/goal');
-                },
-              ),
-            ),
+            // Center(
+            //   child: TextButton(
+            //     child: Text('목표 설정 바로가기'),
+            //     onPressed: () {
+            //       context.go('/signup/workplace/worktime/goal');
+            //     },
+            //   ),
+            // ),
 
           ],
         ),
@@ -74,11 +192,22 @@ class MyPageView extends StatelessWidget {
 }
 
 class _ProfileSummaryCard extends StatelessWidget {
-  const _ProfileSummaryCard({super.key});
+  final String nickname;
+  final String email;
+  final String? profileImageUrl;
+
+  const _ProfileSummaryCard({
+    required this.nickname,
+    required this.email,
+    this.profileImageUrl,
+  });
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+
+    final trimmedNickname = nickname.trim();
+    final firstLetter = trimmedNickname.isNotEmpty ? trimmedNickname[0] : '오';
 
     return Container(
       width: double.infinity,
@@ -103,13 +232,15 @@ class _ProfileSummaryCard extends StatelessWidget {
                 color: AppColors.inkMuted.withValues(alpha: 0.2),
               ),
             ),
-            child: Text(
-              '오',
-              style: textTheme.headlineSmall?.copyWith(
-                color: AppColors.inkMuted,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            child: profileImageUrl == null || profileImageUrl!.trim().isEmpty
+                ? Text(
+                firstLetter,
+                style: textTheme.headlineSmall?.copyWith(
+                  color: AppColors.inkMuted,
+                  fontWeight: FontWeight.w600,
+                  ),
+                )
+                : null,  
           ),
           const SizedBox(width: 18),
           Expanded(
@@ -117,7 +248,7 @@ class _ProfileSummaryCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '오늘',
+                  nickname,
                   style: textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
@@ -149,7 +280,6 @@ class _SettingsCard extends StatelessWidget {
     required this.onWorkTimeTap,
     required this.onWorkPolicyTap,
     required this.onGoalTap,
-    super.key
   });
 
   @override
@@ -184,7 +314,7 @@ class _SettingsCard extends StatelessWidget {
           //   description: '정상 출근 · 지각 · 외근/출장 · 휴가 · 추가 근무',
           //   onTap: onWorkPolicyTap,
           // ),
-          const Divider(height: 1),
+          // const Divider(height: 1),
           _SettingsMenuItem(
             title: '준비 목표',
             description: '공기업 · 자격증',

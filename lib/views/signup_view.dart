@@ -1,10 +1,13 @@
 // filename: ../views/signup_view.dart
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:oneul/widgets/common_text_field.dart';
+
+import '../services/firebase_auth_service.dart';
+import '../services/firestore_service.dart';
 
 import '../theme/app_colors.dart';
 import '../widgets/app_button.dart';
+import '../widgets/common_text_field.dart';
 
 class SignupView extends StatefulWidget {
   const SignupView({super.key});
@@ -14,6 +17,10 @@ class SignupView extends StatefulWidget {
 }
 
 class _SignupViewState extends State<SignupView> {
+
+  final FirebaseAuthService _auth = FirebaseAuthService();
+  final FirestoreService _fs = FirestoreService();
+  bool _isLoading = false;
 
   final _formKey = GlobalKey<FormState>();
   bool _obscurePassword = true;
@@ -34,6 +41,55 @@ class _SignupViewState extends State<SignupView> {
     _passwordController.dispose();
     _passwordConfirmController.dispose();
     super.dispose();
+  }
+
+  Future<void> _signUp() async {
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final credential = await _auth.signupWithEmail(
+        email: _emailController.text,
+        password: _passwordController.text,
+      );
+
+      final user = credential.user;
+
+      if (user == null) {
+        throw Exception('회원가입 정보를 확인할 수 없습니다.');
+      }
+
+      await _fs.createUser(
+        email: user.email!,
+        nickname: _nicknameController.text.trim(),
+        phone: _phoneController.text.trim(),
+      );
+
+      if (!mounted) return;
+
+      context.go('/signup/workplace');
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error.toString().replaceFirst('Exception: ', ''),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -215,7 +271,7 @@ class _SignupViewState extends State<SignupView> {
                       });
                     },
                     icon: Icon(
-                      _obscurePassword
+                      _obscurePasswordConfirm
                           ? Icons.visibility_off_outlined
                           : Icons.visibility_outlined,
                       color: AppColors.inkFaint,
@@ -225,11 +281,14 @@ class _SignupViewState extends State<SignupView> {
                 const SizedBox(height: 40),
 
                 CommonButton(
-                  text: '다음 단계로',
+                  text: _isLoading ? '가입 중' : '다음 단계로',
                   onPressed: () {
-                    if (_formKey.currentState?.validate() ?? false) {
-                      context.go('/signup/workplace');
+                    if(!_isLoading) {
+                      _signUp();
                     }
+                    // if (_formKey.currentState?.validate() ?? false) {
+                    //   context.go('/signup/workplace');
+                    // }
                   },
                   version: ButtonVersion.login,
                 ),

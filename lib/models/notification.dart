@@ -13,3 +13,8 @@ class AppNotification {
     this.isRead = false,
   });
 }
+
+
+
+/// user 정보 추가 필요
+///

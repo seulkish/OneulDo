@@ -7,9 +7,6 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'routes/app_router.dart';
 import '../theme/app_theme.dart';
 
-import '../views/home_view.dart';
-import '../views/login_view.dart';
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -28,11 +25,11 @@ class OneulApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      routerConfig: router,
       debugShowCheckedModeBanner: false,
       title: 'OneulDo: 오늘부터 나두',
       theme: AppTheme.light,
-      themeMode: ThemeMode.light
+      themeMode: ThemeMode.light,
+      routerConfig: router,
     );
   }
 }
