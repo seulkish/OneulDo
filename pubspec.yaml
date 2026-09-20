@@ -40,6 +40,9 @@ dependencies:
   shared_preferences: ^2.5.5
   table_calendar: ^3.2.1
   intl: ^0.20.2
+  cloud_firestore: ^6.10.0
+  firebase_auth: ^6.7.0
+  firebase_core: ^4.15.0
 
 dev_dependencies:
   flutter_test:
@@ -51,13 +54,6 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
-  firebase_core: ^4.13.0
-
-
-# For information on the generic Dart part of this file, see the
-# following page: https://dart.dev/tools/pub/pubspec
-
-# The following section is specific to Flutter packages.
 flutter:
 
   # The following line ensures that the Material Icons font is

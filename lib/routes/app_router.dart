@@ -2,6 +2,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:firebase_auth/firebase_auth.dart';
+
 import '../views/app_shell.dart';
 import '../views/home_view.dart';
 import '../views/login_view.dart';
@@ -46,7 +48,28 @@ final router = GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/landing',
   redirect: (context, state) {
+    final isLoggedIn =
+        FirebaseAuth.instance.currentUser != null;
 
+    final path = state.uri.path;
+
+    final isAuthRoute =
+        path == '/landing' ||
+            path == '/login' ||
+            path == '/signup' ||
+            path.startsWith('/signup/');
+
+    // 비로그인 사용자의 일반 화면 접근 차단
+    if (!isLoggedIn && !isAuthRoute) {
+      return '/login';
+    }
+
+    // 로그인 사용자는 홈으로 이동
+    if (isLoggedIn && isAuthRoute) {
+      return '/';
+    }
+
+    return null;
   },
   routes: [
     GoRoute(

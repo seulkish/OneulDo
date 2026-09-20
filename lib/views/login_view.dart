@@ -2,14 +2,25 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:firebase_auth/firebase_auth.dart';
+import '../services/firebase_auth_service.dart';
+
+import '../theme/app_colors.dart';
 import '../widgets/app_button.dart';
 import '../widgets/common_text_field.dart';
 
-class LoginView extends StatelessWidget {
+class LoginView extends StatefulWidget {
   const LoginView({super.key});
 
-  // String? email;
-  // String? password;
+  @override
+  State<LoginView> createState() => _LoginViewState();
+}
+
+class _LoginViewState extends State<LoginView> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _auth = FirebaseAuthService();
+  bool _obscurePassword = true;
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +49,7 @@ class LoginView extends StatelessWidget {
                     child: Text('이메일', style: theme.textTheme.bodyMedium),
                   ),
                   const SizedBox(height: 8),
-                  CommonTextField(label: '이메일을 입력해주세요'),
+                  CommonTextField(controller: _emailController,label: '이메일을 입력해주세요'),
                   const SizedBox(height: 24),
                 ],
               ),
@@ -52,7 +63,7 @@ class LoginView extends StatelessWidget {
                       children: [
                         Text('비밀번호', style: theme.textTheme.bodyMedium),
                         GestureDetector(
-                          onTap: () {},
+                          onTap: _resetPassword,
                           child: Text(
                             '비밀번호 재설정',
                             style: theme.textTheme.bodyMedium?.copyWith(
@@ -64,16 +75,31 @@ class LoginView extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  CommonTextField(label: '*******'), // 비밀번호 기능-isPassword: true
+                  CommonTextField(
+                    label: '비밀번호를 입력해주세요',
+                    controller: _passwordController,
+                    obscureText: true,
+                    suffixIcon: IconButton(
+                      onPressed: () {
+                        setState(() {
+                          _obscurePassword = !_obscurePassword;
+                        });
+                      },
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        color: AppColors.inkFaint,
+                      ),
+                    ),
+                  ), // 비밀번호 기능-isPassword: true
                 ],
               ),
               const SizedBox(height: 48),
 
               CommonButton(
                 text: '로그인',
-                onPressed: () {
-                  context.go('/');
-                },
+                onPressed: _login,
                 version: ButtonVersion.login,
               ),
 
@@ -154,5 +180,138 @@ class LoginView extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _login() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('이메일과 비밀번호를 입력해주세요.')),
+      );
+      return;
+    }
+
+    debugPrint('email: "${_emailController.text}"');
+    debugPrint('password length: ${_passwordController.text.length}');
+
+    try {
+      await _auth.signInWithEmail(
+        email: email,
+        password: password,
+      );
+
+      if (!mounted) return;
+      context.go('/');
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+
+      final message = switch (e.code) {
+        'invalid-credential' => '이메일 또는 비밀번호를 확인해주세요.',
+        'invalid-email' => '이메일 형식이 올바르지 않습니다.',
+        'too-many-requests' => '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요.',
+        'channel-error' => '로그인 정보를 확인해주세요.',
+        _ => '로그인에 실패했습니다. (${e.code})',
+      };
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _resetPassword() async {
+    final email = await _showResetPasswordDialog();
+    if (email == null) return;
+
+    try {
+      await _auth.sendPasswordResetEmail(email);
+
+      if (!mounted) return;
+      _showMessage('비밀번호 재설정 이메일을 발송했습니다.');
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      _showMessage(e.message ?? '이메일 발송에 실패했습니다.');
+    } catch (_) {
+      if (!mounted) return;
+      _showMessage('이메일 발송에 실패했습니다.');
+    }
+  }
+
+  Future<String?> _showResetPasswordDialog() async {
+    final controller = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    final email = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('비밀번호 재설정'),
+          content: Form(
+            key: formKey,
+            child: TextFormField(
+              controller: controller,
+              keyboardType: TextInputType.emailAddress,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: '이메일',
+                hintText: '가입한 이메일을 입력해주세요.',
+              ),
+              validator: (value) {
+                final email = value?.trim() ?? '';
+
+                if (email.isEmpty) {
+                  return '이메일을 입력해주세요.';
+                }
+
+                if (!email.contains('@')) {
+                  return '올바른 이메일 형식이 아닙니다.';
+                }
+
+                return null;
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('취소'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (formKey.currentState!.validate()) {
+                  Navigator.of(dialogContext).pop(
+                    controller.text.trim(),
+                  );
+                }
+              },
+              child: const Text('이메일 발송'),
+            ),
+          ],
+        );
+      },
+    );
+
+    // controller.dispose();
+    return email;
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text(message)),
+      );
   }
 }

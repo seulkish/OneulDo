@@ -5,6 +5,13 @@ enum ScheduleStatus {
   remaining, // 아직 시간이 남은 일정
 }
 
+enum ScheduleType {
+  attendance,
+  study,
+  jobPreparation,
+  personal,
+}
+
 class Schedule {
   final String time;
   final String title;
