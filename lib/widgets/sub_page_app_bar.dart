@@ -1,12 +1,10 @@
 // filename: widgets/sub_page_app_bar.dart
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
 
+import '../services/firestore_service.dart';
+
 import '../theme/app_colors.dart';
-import '../widgets/position_badge.dart';
-import '../models/work_status.dart';
-import '../theme/work_status_style.dart';
 
 class SubPageAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;

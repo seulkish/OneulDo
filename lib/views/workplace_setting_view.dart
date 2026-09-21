@@ -2,9 +2,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../services/firestore_service.dart';
+
 import '../widgets/sub_page_app_bar.dart';
 import '../widgets/app_button.dart';
 import '../widgets/common_text_field.dart';
+
 import '../theme/app_colors.dart';
 
 import '../models/work_status.dart';
@@ -20,6 +23,7 @@ class WorkplaceSettingView extends StatefulWidget {
 }
 
 class _WorkplaceSettingViewState extends State<WorkplaceSettingView> {
+  final FirestoreService _fs = FirestoreService();
   final Geocoding _geocoding = Geocoding();
 
   int _selectedPlaceIndex = 0;
@@ -30,6 +34,10 @@ class _WorkplaceSettingViewState extends State<WorkplaceSettingView> {
   String? _currentAddress;
   String? _locationError;
   double? _locationAccuracy;
+  double? _selectedLatitude;
+  double? _selectedLongitude;
+  String? _selectedAddress;
+  String get _workplaceName => '현재 위치';
 
   @override
   void initState() {
@@ -104,6 +112,11 @@ class _WorkplaceSettingViewState extends State<WorkplaceSettingView> {
           _currentAddress = placemarks.isNotEmpty
               ? _formatAddress(placemarks.first)
               : '주소를 찾을 수 없습니다.';
+
+          _selectedAddress = _currentAddress;
+          _selectedLatitude = position.latitude;
+          _selectedLongitude = position.longitude;
+
           _locationAccuracy = position.accuracy;
           _locationError = null;
         });
@@ -117,6 +130,11 @@ class _WorkplaceSettingViewState extends State<WorkplaceSettingView> {
           _currentAddress =
           '${position.latitude.toStringAsFixed(5)}, '
               '${position.longitude.toStringAsFixed(5)}';
+
+          _selectedAddress = _currentAddress;
+          _selectedLatitude = position.latitude;
+          _selectedLongitude = position.longitude;
+
           _locationAccuracy = position.accuracy;
           _locationError = null;
         });
@@ -183,6 +201,39 @@ class _WorkplaceSettingViewState extends State<WorkplaceSettingView> {
       );
   }
 
+  bool _isSaving = false;
+
+  Future<void> _saveWorkplace() async {
+    if (_selectedLatitude == null ||
+        _selectedLongitude == null ||
+        _selectedAddress == null) {
+      _showLocationSnackBar(message: '근무지를 선택해주세요.');
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    try {
+      await _fs.updateWorkplace(
+        workplaceName: _workplaceName,
+        address: _selectedAddress!,
+        latitude: _selectedLatitude!,
+        longitude: _selectedLongitude!,
+        allowedRadiusMeters: _selectedRadius,
+      );
+
+      if (!mounted) return;
+
+      context.pop(true); // context.go('/my-page');
+    } catch (e) {
+      if (!mounted) return;
+      _showLocationSnackBar(message: '근무지 변경에 실패했습니다.');
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -487,10 +538,8 @@ class _WorkplaceSettingViewState extends State<WorkplaceSettingView> {
           mainAxisSize: MainAxisSize.min,
           children: [
             CommonButton(
-              text: '근무지 저장',
-              onPressed: () {
-                context.go('/my-page');
-              },
+              text: _isSaving ? '저장 중...' : '변경사항 저장',
+              onPressed: _isSaving ? null : _saveWorkplace,
               version: ButtonVersion.normal,
               status: WorkStatus.beforeWork,
             ),

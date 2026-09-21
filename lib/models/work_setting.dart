@@ -1,26 +1,27 @@
+// filename: models/work_setting.dart
 class WorkSetting {
-  final String workplaceName;
-  final String address;
-  final double latitude;
-  final double longitude;
-  final int allowedRadiusMeters;
+  final String? workplaceName;
+  final String? address;
+  final double? latitude;
+  final double? longitude;
+  final int? allowedRadiusMeters;
 
-  // 분 단위
-  final int targetWorkMinutes;
+  final int? dailyWorkMinutes; // 하루 목표 근무시간: 분 단위
+  final int? availableStartMinutes; // 출근 가능 시간-시작
+  final int? availableEndMinutes; // 출근 가능 시간-종료
 
-  // 출근 가능 시간
-  final int startHour;
-  final int endHour;
+  final String? goal;
 
   const WorkSetting({
-    required this.workplaceName,
-    required this.address,
-    required this.latitude,
-    required this.longitude,
-    required this.allowedRadiusMeters,
-    required this.targetWorkMinutes,
-    required this.startHour,
-    required this.endHour,
+    this.workplaceName,
+    this.address,
+    this.latitude,
+    this.longitude,
+    this.allowedRadiusMeters,
+    this.dailyWorkMinutes,
+    this.availableStartMinutes,
+    this.availableEndMinutes,
+    this.goal,
   });
 
   WorkSetting copyWith({
@@ -29,9 +30,10 @@ class WorkSetting {
     double? latitude,
     double? longitude,
     int? allowedRadiusMeters,
-    int? targetWorkMinutes,
-    int? startHour,
-    int? endHour,
+    int? dailyWorkMinutes,
+    int? availableStartMinutes,
+    int? availableEndMinutes,
+    String? goal,
   }) {
     return WorkSetting(
       workplaceName: workplaceName ?? this.workplaceName,
@@ -40,10 +42,45 @@ class WorkSetting {
       longitude: longitude ?? this.longitude,
       allowedRadiusMeters:
       allowedRadiusMeters ?? this.allowedRadiusMeters,
-      targetWorkMinutes:
-      targetWorkMinutes ?? this.targetWorkMinutes,
-      startHour: startHour ?? this.startHour,
-      endHour: endHour ?? this.endHour,
+      dailyWorkMinutes:
+      dailyWorkMinutes ?? this.dailyWorkMinutes,
+      availableStartMinutes:
+      availableStartMinutes ?? this.availableStartMinutes,
+      availableEndMinutes:
+      availableEndMinutes ?? this.availableEndMinutes,
+      goal: goal ?? this.goal,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'workplaceName': workplaceName,
+      'address': address,
+      'latitude': latitude,
+      'longitude': longitude,
+      'allowedRadiusMeters': allowedRadiusMeters,
+      'dailyWorkMinutes': dailyWorkMinutes,
+      'availableStartMinutes': availableStartMinutes,
+      'availableEndMinutes': availableEndMinutes,
+      'goal': goal,
+    };
+  }
+
+  factory WorkSetting.fromMap(Map<String, dynamic> map) {
+    return WorkSetting(
+      workplaceName: map['workplaceName'] as String?,
+      address: map['address'] as String?,
+      latitude: (map['latitude'] as num?)?.toDouble(),
+      longitude: (map['longitude'] as num?)?.toDouble(),
+      allowedRadiusMeters:
+      (map['allowedRadiusMeters'] as num?)?.toInt(),
+      dailyWorkMinutes:
+      (map['dailyWorkMinutes'] as num?)?.toInt(),
+      availableStartMinutes:
+      (map['availableStartMinutes'] as num?)?.toInt(),
+      availableEndMinutes:
+      (map['availableEndMinutes'] as num?)?.toInt(),
+      goal: map['goal'] as String?,
     );
   }
 }

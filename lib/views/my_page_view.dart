@@ -144,8 +144,15 @@ class _MyPageViewState extends State<MyPageView> {
             const SizedBox(height: 16),
 
             _SettingsCard(
-              onWorkplaceTap: () {
-                context.go('/my-page/workplace');
+              onWorkplaceTap: () async {
+                final changed = await context.push<bool>(
+                  '/my-page/workplace',
+                );
+                if (changed == true && mounted) {
+                  setState(() {
+                    _userFuture = _fs.readUser();
+                  });
+                }
               },
               onWorkTimeTap: () {
                 context.go('/my-page/worktime');
@@ -172,6 +179,9 @@ class _MyPageViewState extends State<MyPageView> {
                   onPressed: _withdrawAccount,
                   child: const Text('회원 탈퇴'),
                 ),
+                TextButton(onPressed: () async {
+                  await _fs.updateTemp(10);
+                }, child: Text('temp'))
               ]
             ),
 

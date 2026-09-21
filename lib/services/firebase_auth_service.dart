@@ -25,7 +25,7 @@ class FirebaseAuthService {
       );
     } on FirebaseException catch (e) {
       throw Exception(_getErrorMessage(e.code));
-    };
+    }
   }
 
   // 이메일 로그인
