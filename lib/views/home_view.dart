@@ -3,16 +3,20 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'dart:async';
 
+import '../services/firestore_service.dart';
+
 import '../theme/app_colors.dart';
+import '../theme/work_status_style.dart';
+
 import '../widgets/add_schedule_bottom_sheet.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/confirm_dialog.dart';
 import '../widgets/app_bar.dart';
 import '../widgets/employee_profile_header.dart';
+
 import '../models/schedule.dart';
 import '../models/work_status.dart';
-import '../theme/work_status_style.dart';
 
 class HomeView extends StatefulWidget {
   const HomeView({super.key});
@@ -22,6 +26,42 @@ class HomeView extends StatefulWidget {
 }
 
 class _HomeViewState extends State<HomeView> {
+  final FirestoreService _fs = FirestoreService();
+
+  String _nickname = '';
+  String _jobTitle = '인턴';
+  int _totalPoints = 0;
+  String _profileImageUrl = 'assets/images/sample_employee.png';
+
+  @override
+  void initState() {
+    // TODO: implement initState
+    super.initState();
+    _loadUserProfile();
+  }
+
+  Future<void> _loadUserProfile() async {
+    try {
+      final data = await _fs.readUser();
+      if (!mounted || data == null) return;
+
+      setState(() {
+        _nickname = data['nickname'] ?? '';
+        _jobTitle = data['jobTitle'] ?? '인턴';
+        _totalPoints = (data['point'] as num?)?.toInt() ?? 0;
+        _profileImageUrl = data['profileImageUrl'] ?? 'assets/images/sample_employee.png' ;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('사용자 정보를 불러오지 못했습니다.'),
+        ),
+      );
+    }
+  }
+
   WorkStatus _status = WorkStatus.beforeWork;
   double _progress = 0.1;
 
@@ -284,12 +324,12 @@ class _HomeViewState extends State<HomeView> {
                     // 프로필 영역
                     EmployeeProfileHeader(
                       status: status,
-                      name: '이오늘',
+                      name: _nickname,
                       company: '새싹컴퍼니',
                       department: 'IT개발준비팀',
-                      position: '사원',
+                      position: _jobTitle,
                       employeeNumber: '20260902',
-                      imagePath: 'assets/images/sample_employee.png',
+                      imagePath: _profileImageUrl,
                     ),
 
                     // 근무 정보 및 버튼 영역

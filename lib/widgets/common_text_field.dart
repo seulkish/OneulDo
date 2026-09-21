@@ -9,6 +9,7 @@ class CommonTextField extends StatelessWidget {
   final Widget? suffixIcon;
   final TextInputType? keyboardType;
   final String? Function(String?)? validator;
+  final Function(String?)? onChange;
 
   const CommonTextField({
     super.key,
@@ -20,6 +21,7 @@ class CommonTextField extends StatelessWidget {
     this.suffixIcon, // 오른쪽 - 비밀번호
     this.keyboardType,
     this.validator,
+    this.onChange,
   });
 
   @override
@@ -36,6 +38,7 @@ class CommonTextField extends StatelessWidget {
         suffixIcon: suffixIcon,
         border: const OutlineInputBorder(),
       ),
+      onChanged: onChange,
     );
   }
 }

@@ -1,11 +1,15 @@
 // filename: ../views/set_workplace_view.dart
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:oneul/widgets/common_text_field.dart';
+
+import '../services/firestore_service.dart';
 
 import '../theme/app_colors.dart';
 import '../widgets/app_button.dart';
+import '../widgets/common_text_field.dart';
+
 import '../models/work_status.dart';
+import '../models/workplace_option.dart';
 
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
@@ -18,9 +22,15 @@ class SetWorkplaceView extends StatefulWidget {
 }
 
 class _SetWorkplaceViewState extends State<SetWorkplaceView> {
+  final FirestoreService _fs = FirestoreService();
   final Geocoding _geocoding = Geocoding();
 
-  int _selectedPlaceIndex = 0;
+  // 입력 컨트롤러
+  final TextEditingController _workplaceController =
+  TextEditingController();
+
+  // 근무지 선택 상태
+  int? _selectedPlaceIndex;
   int _selectedRadius = 50;
 
   // 위치 상태 변수
@@ -28,6 +38,33 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
   String? _currentAddress;
   String? _locationError;
   double? _locationAccuracy;
+  double? _currentLatitude;
+  double? _currentLongitude;
+
+
+  final List<WorkplaceOption> _workplaces = [
+    const WorkplaceOption(
+      name: '중앙도서관 3층 열람실',
+      address: '서울 서대문구 신촌동',
+      latitude: 37.5595,
+      longitude: 126.9425,
+      distanceMeters: 240,
+    ),
+    const WorkplaceOption(
+      name: '스터디카페 라운지 신촌점',
+      address: '서울 서대문구 연세로',
+      latitude: 37.5578,
+      longitude: 126.9368,
+      distanceMeters: 620,
+    ),
+    const WorkplaceOption(
+      name: '서대문 청년센터 스터디룸',
+      address: '서울 서대문구 모래내로',
+      latitude: 37.5732,
+      longitude: 126.9237,
+      distanceMeters: 1100,
+    ),
+  ];
 
   @override
   void initState() {
@@ -35,10 +72,17 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _getCurrentLocation();
+      _loadWorkplace();
     });
   }
 
-  //
+  @override
+  void dispose() {
+    // TODO: implement dispose
+    _workplaceController.dispose();
+    super.dispose();
+  }
+
   Future<void> _getCurrentLocation() async {
     if (_isLocationLoading) return;
 
@@ -102,6 +146,9 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
           _currentAddress = placemarks.isNotEmpty
               ? _formatAddress(placemarks.first)
               : '주소를 찾을 수 없습니다.';
+
+          _currentLatitude = position.latitude;
+          _currentLongitude = position.longitude;
           _locationAccuracy = position.accuracy;
           _locationError = null;
         });
@@ -115,6 +162,8 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
           _currentAddress =
               '${position.latitude.toStringAsFixed(5)}, '
               '${position.longitude.toStringAsFixed(5)}';
+          _currentLatitude = position.latitude;
+          _currentLongitude = position.longitude;
           _locationAccuracy = position.accuracy;
           _locationError = null;
         });
@@ -179,6 +228,73 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
               : null,
         ),
       );
+  }
+
+  Future<void> _saveWorkplace() async {
+    final selectedIndex = _selectedPlaceIndex;
+
+    if (selectedIndex == null) {
+      _showLocationSnackBar(message: '근무지를 선택해주세요.');
+      return;
+    }
+
+    final place = _workplaces[selectedIndex];
+
+    try {
+      await _fs.updateWorkplace(
+        workplaceName: place.name,
+        address: place.address,
+        latitude: place.latitude,
+        longitude: place.longitude,
+        allowedRadiusMeters: _selectedRadius,
+      );
+
+      final savedData = await _fs.readWorkplace();
+
+      if (!mounted) return;
+      if (savedData == null ||
+          savedData['workplaceName'] == null) {
+        _showLocationSnackBar(
+          message: '근무지 저장 결과를 확인하지 못했습니다.',
+        );
+        return;
+      }
+
+      _showLocationSnackBar(
+        message: '${savedData['workplaceName']} 저장 완료',
+      );
+
+      context.go('/signup/workplace/worktime');
+    } catch (e) {
+      if (!mounted) return;
+      _showLocationSnackBar(message: '근무지 저장에 실패했습니다: $e');
+    }
+  }
+
+  Future<void> _loadWorkplace() async {
+    try {
+      final data = await _fs.readWorkplace();
+
+      if (!mounted || data == null) return;
+
+      final workplace = data['workplace'] as String?;
+      final savedIndex = _workplaces.indexWhere(
+            (place) => place.name == workplace,
+      );
+
+      setState(() {
+        _workplaceController.text = workplace ?? '';
+        _selectedPlaceIndex = savedIndex == -1 ? null : savedIndex;
+
+        _selectedRadius =
+            (data['radiusMeters'] as num?)?.toInt() ?? 50;
+    });
+    } catch (e) {
+      if (!mounted) return;
+      _showLocationSnackBar(
+        message: '기존 근무지 정보를 불러오지 못했습니다.',
+      );
+    }
   }
 
   @override
@@ -263,12 +379,19 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
               const SizedBox(height: 12),
 
               CommonTextField(
+                controller: _workplaceController,
                 label: '',
                 hint: '장소 또는 주소로 검색',
                 prefixIcon: Icon(
                   Icons.location_on_outlined,
                   color: AppColors.inkFaint,
                 ),
+                onChange: (value) {
+                  setState(() {
+                    _selectedPlaceIndex = null;
+                  });
+                  // 검색 API 또는 검색 결과 필터링
+                },
               ),
               const SizedBox(height: 10),
 
@@ -316,39 +439,45 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
                       color: AppColors.primary,
                     ),
                     const SizedBox(width: 10),
-                    Expanded(child: Text('현재 위치 · 서울 서대문구 신촌동')),
-                    Text(
-                      '정확도 ±8m',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: AppColors.inkFaint,
+                    Expanded(
+                      child: Text(
+                        _isLocationLoading
+                            ? '현재 위치를 확인하고 있습니다'
+                            : _locationError ??
+                              '현재 위치 · ${_currentAddress ?? '위치 정보 없음'}',
                       ),
                     ),
+                    if (_locationAccuracy != null)
+                      Text(
+                        '정확도 ±${_locationAccuracy!.round()}m',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: AppColors.inkFaint,
+                        ),
+                      ),
                   ],
                 ),
               ),
               const SizedBox(height: 12),
 
-              _placeCard(
-                context: context,
-                index: 0,
-                title: '중앙도서관 3층 열람실',
-                description: '현재 위치에서 240m · 도보 4분',
-              ),
-              const SizedBox(height: 8),
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _workplaces.length,
+                separatorBuilder: (context, index) {
+                  return const SizedBox(height: 8);
+                },
+                itemBuilder: (context, index) {
+                  final place = _workplaces[index];
 
-              _placeCard(
-                context: context,
-                index: 1,
-                title: '스터디카페 라운지 신촌점',
-                description: '현재 위치에서 620m · 도보 9분',
-              ),
-              const SizedBox(height: 8),
-
-              _placeCard(
-                context: context,
-                index: 2,
-                title: '서대문 청년센터 스터디룸',
-                description: '현재 위치에서 1.1km · 버스 6분',
+                  return _placeCard(
+                    context: context,
+                    index: index,
+                    title: place.name,
+                    description:
+                    '${place.address} · 현재 위치에서 '
+                        '${place.distanceMeters?.round() ?? 0}m',
+                  );
+                },
               ),
               const SizedBox(height: 16),
 
@@ -384,9 +513,7 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
           children: [
             CommonButton(
               text: '다음',
-              onPressed: () {
-                context.go('/signup/workplace/worktime');
-              },
+              onPressed: _saveWorkplace,
               version: ButtonVersion.normal,
               status: WorkStatus.beforeWork,
             ),
@@ -422,8 +549,11 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
 
     return InkWell(
       onTap: () {
+        final place = _workplaces[index];
+
         setState(() {
           _selectedPlaceIndex = index;
+          _workplaceController.text = place.name;
         });
       },
       borderRadius: BorderRadius.circular(12),

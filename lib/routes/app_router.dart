@@ -53,20 +53,31 @@ final router = GoRouter(
 
     final path = state.uri.path;
 
-    final isAuthRoute =
+    final isPublicRoute =
         path == '/landing' ||
             path == '/login' ||
-            path == '/signup' ||
-            path.startsWith('/signup/');
+            path == '/signup';
 
-    // 비로그인 사용자의 일반 화면 접근 차단
-    if (!isLoggedIn && !isAuthRoute) {
+    final isOnboardingRoute =
+    path.startsWith('/signup/');
+
+    // 비로그인 사용자는 공개 화면만 접근 가능
+    if (!isLoggedIn) {
+      if (isPublicRoute) {
+        return null;
+      }
+
       return '/login';
     }
 
-    // 로그인 사용자는 홈으로 이동
-    if (isLoggedIn && isAuthRoute) {
+    // 로그인 사용자가 로그인·랜딩 화면에 접근한 경우
+    if (path == '/landing' || path == '/login') {
       return '/';
+    }
+
+    // 회원가입 직후 온보딩 화면 이동 허용
+    if (path == '/signup' || isOnboardingRoute) {
+      return null;
     }
 
     return null;

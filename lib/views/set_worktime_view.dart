@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../services/firestore_service.dart';
+
 import '../theme/app_colors.dart';
 import '../widgets/app_button.dart';
 import '../models/work_status.dart';
@@ -14,12 +16,14 @@ class SetWorkTimeView extends StatefulWidget {
 }
 
 class _SetWorkTimeViewState extends State<SetWorkTimeView> {
+  final FirestoreService _fs = FirestoreService();
+
   int _workHours = 4;
+  int _selectedStartHour = 9;
+  bool _isSaving = false;
 
   static const int _minWorkHours = 1;
   static const int _maxWorkHours = 10;
-
-  int _selectedTimeIndex = 1;
 
   void _decreaseWorkHours() {
     if (_workHours <= _minWorkHours) return;
@@ -35,6 +39,45 @@ class _SetWorkTimeViewState extends State<SetWorkTimeView> {
     setState(() {
       _workHours++;
     });
+  }
+
+  Future<void> _saveWorkTime() async {
+    if (_isSaving) return;
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    // 분으로 바꿔서 계산
+    final int targetStartMinutes = _selectedStartHour * 60;
+    final int availableStartMinutes = targetStartMinutes - 60;
+    final int availableEndMinutes = targetStartMinutes;
+    final int dailyWorkMinutes = _workHours * 60;
+
+    try {
+      await _fs.updateWorkTime(
+        dailyWorkMinutes: dailyWorkMinutes,
+        availableStartMinutes: availableStartMinutes,
+        availableEndMinutes: availableEndMinutes,
+      );
+
+      if (!mounted) return;
+      context.go('/signup/workplace/worktime/goal');
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('근무 시간 저장에 실패했습니다.'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
   }
 
   @override
@@ -201,9 +244,9 @@ class _SetWorkTimeViewState extends State<SetWorkTimeView> {
 
               Row(
                 children: [
-                  _buildTimeSlotButton(0, '오전 8시'),
+                  _buildTimeSlotButton(8, '오전 8시'),
                   const SizedBox(width: 10),
-                  _buildTimeSlotButton(1, '오전 9시'),
+                  _buildTimeSlotButton(9, '오전 9시'),
                   const SizedBox(width: 10),
                   _buildTimeSlotButton(10, '오전 10시'),
                 ],
@@ -224,17 +267,17 @@ class _SetWorkTimeViewState extends State<SetWorkTimeView> {
           mainAxisSize: MainAxisSize.min,
           children: [
             CommonButton(
-              text: '다음',
-              onPressed: () {
-                context.go('/signup/workplace/worktime/goal');
-              },
+              text: _isSaving ? '저장 중...' : '다음',
+              onPressed: _isSaving ? null : _saveWorkTime,
               version: ButtonVersion.normal,
               status: WorkStatus.beforeWork,
             ),
             // const SizedBox(height: 8),
             Center(
               child: TextButton(
-                onPressed: () {
+                onPressed: () async {
+                  await _fs.completeOnboarding();
+                  if (!context.mounted) return;
                   context.go('/');
                 },
                 child: Text(
@@ -252,15 +295,15 @@ class _SetWorkTimeViewState extends State<SetWorkTimeView> {
     );
   }
 
-  Widget _buildTimeSlotButton(int index, String time) {
+  Widget _buildTimeSlotButton(int hour, String label) {
     final theme = Theme.of(context);
-    final isSelected = _selectedTimeIndex == index;
+    final isSelected = _selectedStartHour == hour;
 
     return Expanded(
       child: InkWell(
         onTap: () {
           setState(() {
-            _selectedTimeIndex = index;
+            _selectedStartHour = hour;
           });
         },
         borderRadius: BorderRadius.circular(12),
@@ -277,7 +320,7 @@ class _SetWorkTimeViewState extends State<SetWorkTimeView> {
             ),
           ),
           child: Text(
-            '${time}',
+            label,
             style: theme.textTheme.titleMedium?.copyWith(
               color: isSelected ? AppColors.primary : AppColors.ink,
               fontWeight: FontWeight.w600,
