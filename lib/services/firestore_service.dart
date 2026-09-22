@@ -208,9 +208,16 @@ class FirestoreService {
         'dateId': dateId,
         'status': isFieldWork ? 'fieldWork' : 'working',
         'attendanceStatus': attendanceStatus,
+
+        // 최초 출근과 일반 근무 종료
         'startedAt': FieldValue.serverTimestamp(),
         'endedAt': null,
 
+        // 추가 근무 시작과 종료
+        'overtimeStartedAt': null,
+        'overtimeEndedAt': null,
+
+        // 유형별 근무시간
         'workedMinutes': 0,
         'fieldWorkMinutes': 0,
         'overtimeMinutes': 0,
@@ -229,7 +236,11 @@ class FirestoreService {
 
   // 퇴근 기록 저장
   Future<bool> saveEndWork() async {
-    final koreaNow = DateTime.now().toUtc().add(
+    // 실제 시간 계산 및 Timestamp 저장에 사용
+    final now = DateTime.now();
+
+    // 한국 날짜의 attendanceRecords 문서 ID를 만드는 데만 사용
+    final koreaNow = now.toUtc().add(
       const Duration(hours: 9),
     );
 
@@ -243,7 +254,6 @@ class FirestoreService {
         .doc(dateId);
 
     return _firestore.runTransaction<bool>((transaction) async {
-      // 당일 출근 기록 조회
       final snapshot = await transaction.get(attendanceDocument);
 
       if (!snapshot.exists) {
@@ -256,27 +266,182 @@ class FirestoreService {
         throw Exception('출근 기록을 불러올 수 없습니다.');
       }
 
+      final status = data['status'] as String?;
+
       final startedAt = data['startedAt'] as Timestamp?;
       final endedAt = data['endedAt'] as Timestamp?;
 
-      if (startedAt == null) {
-        throw Exception('출근 시간이 저장되어 있지 않습니다.');
+      final overtimeStartedAt =
+      data['overtimeStartedAt'] as Timestamp?;
+
+      final overtimeEndedAt =
+      data['overtimeEndedAt'] as Timestamp?;
+
+      var workedMinutes =
+          (data['workedMinutes'] as num?)?.toInt() ?? 0;
+
+      var fieldWorkMinutes =
+          (data['fieldWorkMinutes'] as num?)?.toInt() ?? 0;
+
+      var overtimeMinutes =
+          (data['overtimeMinutes'] as num?)?.toInt() ?? 0;
+
+      // 일반 근무 또는 외근 종료
+      if (status == 'working' || status == 'fieldWork') {
+        if (startedAt == null) {
+          throw Exception('출근 시간이 저장되어 있지 않습니다.');
+        }
+
+        if (endedAt != null) {
+          return false;
+        }
+
+        final baseWorkMinutes = now
+            .difference(startedAt.toDate())
+            .inMinutes
+            .clamp(0, 1440);
+
+        if (status == 'fieldWork') {
+          // 하루 전체가 외근인 경우
+          fieldWorkMinutes = baseWorkMinutes;
+          workedMinutes = 0;
+        } else {
+          // 일반 근무인 경우
+          workedMinutes = baseWorkMinutes;
+          fieldWorkMinutes = 0;
+        }
+
+        final totalWorkedMinutes =
+            workedMinutes +
+                fieldWorkMinutes +
+                overtimeMinutes;
+
+        transaction.update(attendanceDocument, {
+          'endedAt': Timestamp.fromDate(now),
+
+          'workedMinutes': workedMinutes,
+          'fieldWorkMinutes': fieldWorkMinutes,
+          'overtimeMinutes': overtimeMinutes,
+          'totalWorkedMinutes': totalWorkedMinutes,
+
+          'status': 'completed',
+        });
+
+        return true;
       }
 
-      // 중복 퇴근 방지
-      if (endedAt != null) {
+      // 추가 근무 종료
+      if (status == 'overtime') {
+        if (overtimeStartedAt == null) {
+          throw Exception('추가 근무 시작 시간이 저장되어 있지 않습니다.');
+        }
+
+        if (overtimeEndedAt != null) {
+          return false;
+        }
+
+        overtimeMinutes = now
+            .difference(overtimeStartedAt.toDate())
+            .inMinutes
+            .clamp(0, 1440);
+
+        final totalWorkedMinutes =
+            workedMinutes +
+                fieldWorkMinutes +
+                overtimeMinutes;
+
+        transaction.update(attendanceDocument, {
+          'overtimeEndedAt': Timestamp.fromDate(now),
+          'overtimeMinutes': overtimeMinutes,
+          'totalWorkedMinutes': totalWorkedMinutes,
+          'status': 'completed',
+        });
+
+        return true;
+      }
+
+      if (status == 'completed') {
         return false;
       }
 
-      final workedMinutes = koreaNow
-          .difference(startedAt.toDate())
-          .inMinutes
-          .clamp(0, 1440);
+      throw Exception('퇴근할 수 없는 근무 상태입니다.');
+    });
+  }
+
+  Future<bool> hasApprovedFieldWorkForToday() async {
+    final koreaNow = DateTime.now().toUtc().add(
+      const Duration(hours: 9),
+    );
+
+    final today = Timestamp.fromDate(
+      DateTime.utc(koreaNow.year, koreaNow.month, koreaNow.day),
+    );
+
+    final tomorrow = Timestamp.fromDate(
+      DateTime.utc(koreaNow.year, koreaNow.month, koreaNow.day + 1),
+    );
+
+    final snapshot = await userDocument
+        .collection('leaveRequests')
+        .where('leaveType', isEqualTo: 'fieldWork')
+        .where('approvalStatus', isEqualTo: 'approved')
+        .where('startDate', isLessThan: tomorrow)
+        .get();
+
+    return snapshot.docs.any((document) {
+      final data = document.data();
+      final endDate = data['endDate'] as Timestamp?;
+
+      return endDate != null && !endDate.toDate().isBefore(today.toDate());
+    });
+  }
+
+  Future<bool> startOvertime() async {
+    final now = DateTime.now();
+
+    final koreaNow = now.toUtc().add(
+      const Duration(hours: 9),
+    );
+
+    final dateId =
+        '${koreaNow.year}-'
+        '${koreaNow.month.toString().padLeft(2, '0')}-'
+        '${koreaNow.day.toString().padLeft(2, '0')}';
+
+    final attendanceDocument = userDocument
+        .collection('attendanceRecords')
+        .doc(dateId);
+
+    return _firestore.runTransaction<bool>((transaction) async {
+      final snapshot = await transaction.get(attendanceDocument);
+
+      if (!snapshot.exists) {
+        throw Exception('오늘 근무 기록이 없습니다.');
+      }
+
+      final data = snapshot.data();
+
+      if (data == null) {
+        throw Exception('근무 기록을 불러올 수 없습니다.');
+      }
+
+      final status = data['status'] as String?;
+      final endedAt = data['endedAt'] as Timestamp?;
+      final overtimeStartedAt =
+      data['overtimeStartedAt'] as Timestamp?;
+
+      if (status != 'completed' || endedAt == null) {
+        throw Exception('일반 근무를 먼저 종료해주세요.');
+      }
+
+      if (overtimeStartedAt != null) {
+        return false;
+      }
 
       transaction.update(attendanceDocument, {
-        'endedAt': Timestamp.fromDate(koreaNow),
-        'workedMinutes': workedMinutes,
-        'status': 'completed',
+        'overtimeStartedAt': Timestamp.fromDate(now),
+        'overtimeEndedAt': null,
+        'status': 'overtime',
       });
 
       return true;

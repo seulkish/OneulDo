@@ -223,7 +223,10 @@ class _HomeViewState extends State<HomeView> {
   Position? _currentPosition;
   Map<String, dynamic>? _workSettings;
 
-  bool get _isWorking => _status == WorkStatus.working || _status == WorkStatus.overtime;
+  bool get _isWorking =>
+      _status == WorkStatus.working ||
+          _status == WorkStatus.fieldWork ||
+          _status == WorkStatus.overtime;
 
   bool get _canStartWork {
     return _status == WorkStatus.beforeWork &&
@@ -322,12 +325,15 @@ class _HomeViewState extends State<HomeView> {
     });
 
     try {
+      final isFieldWork = await _fs.hasApprovedFieldWorkForToday();
+
       final isCreated = await _fs.saveAttendanceRecord(
         requiredWorkMinutes: requiredWorkMinutes,
         availableEndMinutes: availableEndMinutes,
         latitude: position.latitude,
         longitude: position.longitude,
         distanceMeters: distance,
+        isFieldWork: isFieldWork,
       );
 
       if (!mounted) return;
@@ -476,12 +482,48 @@ class _HomeViewState extends State<HomeView> {
     showConfirmDialog(
       context: context,
       title: '추가 근무 확인',
-      message: '추가 근무 상태로 전환할까요?',
-      confirmText: '전환하기',
-      onConfirm: () {
-        setState(() {
-          _status = WorkStatus.overtime;
-        });
+      message: '추가 근무를 시작할까요?',
+      confirmText: '시작하기',
+      onConfirm: () async {
+        try {
+          final isStarted = await _fs.startOvertime();
+
+          if (!mounted) return;
+
+          if (!isStarted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('추가 근무가 이미 시작되었습니다.'),
+              ),
+            );
+            return;
+          }
+
+          setState(() {
+            _status = WorkStatus.overtime;
+          });
+
+          // 화면의 추가 근무 타이머 시작
+          _startWorkTimer();
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('추가 근무를 시작했습니다.'),
+            ),
+          );
+        } catch (e) {
+          if (!mounted) return;
+
+          final message = e
+              .toString()
+              .replaceFirst('Exception: ', '');
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(message),
+            ),
+          );
+        }
       },
     );
   }
