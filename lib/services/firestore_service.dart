@@ -169,34 +169,56 @@ class FirestoreService {
   }
 
   // 출근 기록
-  Future<void> saveAttendanceRecord({
+  Future<bool> saveAttendanceRecord({
     required int requiredWorkMinutes,
+    required int availableEndMinutes,
+    required double latitude,
+    required double longitude,
+    required double distanceMeters,
   }) async {
-    final now = DateTime.now();
+    final koreaNow = DateTime.now().toUtc().add(
+      const Duration(hours: 9),
+    );
 
     final dateId =
-        '${now.year}-'
-        '${now.month.toString().padLeft(2, '0')}-'
-        '${now.day.toString().padLeft(2, '0')}';
+        '${koreaNow.year}-'
+        '${koreaNow.month.toString().padLeft(2, '0')}-'
+        '${koreaNow.day.toString().padLeft(2, '0')}';
 
-    await userDocument
+    final attendanceDocument = userDocument
         .collection('attendanceRecords')
-        .doc(dateId)
-        .set({
-      'date': Timestamp.fromDate(
-        DateTime(
-          now.year,
-          now.month,
-          now.day,
-        ),
-      ),
-      'status': 'working',
-      'startedAt': FieldValue.serverTimestamp(),
-      'endedAt': null,
-      'workedMinutes': 0,
-      'requiredWorkMinutes': requiredWorkMinutes,
-      'earnedPoint': 0,
+        .doc(dateId);
+
+    final currentMinutes = koreaNow.hour * 60 + koreaNow.minute;
+
+    final attendanceStatus =
+        currentMinutes <= availableEndMinutes
+            ? 'normal'
+            : 'late';
+    
+    return _firestore.runTransaction<bool>((transaction) async {
+      final snapshot = await transaction.get(attendanceDocument);
+      if (snapshot.exists) {
+        return false;
+      }
+
+      transaction.set(attendanceDocument, {
+        'userId': _uid,
+        'dateId': dateId,
+        'status': 'working',
+        'attendanceStatus': attendanceStatus,
+        'startedAt': FieldValue.serverTimestamp(),
+        'endedAt': null,
+        'workedMinutes': 0,
+        'requiredWorkMinutes': requiredWorkMinutes,
+        'latitude': latitude,
+        'longitude': longitude,
+        'distanceMeters': distanceMeters,
+        'earnedPoint': 0,
+      });
+      return true;
     });
+
   }
 }
 

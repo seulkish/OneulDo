@@ -50,7 +50,7 @@ class _HomeViewState extends State<HomeView> {
       setState(() {
         _nickname = data['nickname'] ?? '';
         _jobTitle = data['jobTitle'] ?? '인턴';
-        _totalPoints = (data['point'] as num?)?.toInt() ?? 0;
+        _totalPoints = (data['points'] as num?)?.toInt() ?? 0;
         _profileImageUrl = data['profileImageUrl'] ?? 'assets/images/sample_employee.png' ;
       });
     } catch (e) {
@@ -139,6 +139,8 @@ class _HomeViewState extends State<HomeView> {
       if (!mounted) return;
 
       setState(() {
+        _currentPosition = currentPosition;
+        _workSettings = workSettings;
         _distanceFromWorkplace = distance;
         _isWithinWorkplace = isWithinWorkplace;
       });
@@ -163,7 +165,18 @@ class _HomeViewState extends State<HomeView> {
   }
 
   WorkStatus _status = WorkStatus.beforeWork;
-  double _progress = 0.1;
+  //double _progress = 0.1;
+  double get _progress {
+    final requiredMinutes =
+    (_workSettings?['dailyWorkMinutes'] as num?)?.toInt();
+
+    if (requiredMinutes == null || requiredMinutes <= 0) {
+      return 0;
+    }
+
+    return (_workedDuration.inSeconds / (requiredMinutes * 60))
+        .clamp(0.0, 1.0);
+  }
 
   Timer? _workTimer;
   DateTime? _workStartedAt;
@@ -175,6 +188,11 @@ class _HomeViewState extends State<HomeView> {
     final seconds = (_workedDuration.inSeconds % 60).toString().padLeft(2, '0');
 
     return '$hours:$minutes:$seconds';
+  }
+  DateTime get _koreaNow {
+    return DateTime.now().toUtc().add(
+      const Duration(hours: 9),
+    );
   }
   String _formatClockTime(DateTime? time) {
     if (time == null) return '--:--';
@@ -197,8 +215,12 @@ class _HomeViewState extends State<HomeView> {
   bool? _isWithinWorkplace;
 
   bool _isCheckingLocation = false;
+  bool _isStartingWork = false;
   double? _distanceFromWorkplace;
   String? _locationError;
+
+  Position? _currentPosition;
+  Map<String, dynamic>? _workSettings;
 
   bool get _isWorking => _status == WorkStatus.working || _status == WorkStatus.overtime;
 
@@ -259,6 +281,95 @@ class _HomeViewState extends State<HomeView> {
     return null;
   }
 
+  Future<void> _startWork() async {
+    if (_isStartingWork) return;
+
+    final position = _currentPosition;
+    final workSettings = _workSettings;
+    final distance = _distanceFromWorkplace;
+
+    if (position == null ||
+        workSettings == null ||
+        distance == null ||
+        _isWithinWorkplace != true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('GPS 인증 정보가 없습니다. 위치를 다시 확인해주세요.'),
+        ),
+      );
+      return;
+    }
+
+    final requiredWorkMinutes =
+    (workSettings['dailyWorkMinutes'] as num?)?.toInt();
+
+    final availableEndMinutes =
+    (workSettings['availableEndMinutes'] as num?)?.toInt();
+
+    if (requiredWorkMinutes == null ||
+        availableEndMinutes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('근무 시간 설정을 확인해주세요.'),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isStartingWork = true;
+    });
+
+    try {
+      final isCreated = await _fs.saveAttendanceRecord(
+        requiredWorkMinutes: requiredWorkMinutes,
+        availableEndMinutes: availableEndMinutes,
+        latitude: position.latitude,
+        longitude: position.longitude,
+        distanceMeters: distance,
+      );
+
+      if (!mounted) return;
+
+      if (!isCreated) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('오늘은 이미 출근 처리되었습니다.'),
+          ),
+        );
+        return;
+      }
+
+      setState(() {
+        _status = WorkStatus.working;
+      });
+
+      _startWorkTimer();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('출근 처리가 완료되었습니다.'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('출근 기록 저장에 실패했습니다: $e'),
+        ),
+      );
+
+      debugPrint('오류: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isStartingWork = false;
+        });
+      }
+    }
+  }
+
   void _confirmStartWork() async {
     await _checkWorkplaceLocation();
 
@@ -280,16 +391,8 @@ class _HomeViewState extends State<HomeView> {
       title: '출근 확인',
       message: '현재 위치에서 출근 처리할까요?',
       confirmText: '출근하기',
-      onConfirm: () {
-        setState(() {
-          _status = WorkStatus.working;
-        });
-
-        _startWorkTimer();
-
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('출근 처리가 완료되었습니다.')));
+      onConfirm: () async {
+        await _startWork();
       },
     );
   }
@@ -301,7 +404,7 @@ class _HomeViewState extends State<HomeView> {
       message: '오늘 근무를 종료하고 퇴근 처리할까요?',
       confirmText: '퇴근하기',
       onConfirm: () {
-        final endedAt = DateTime.now();
+        final endedAt = _koreaNow;
         _workTimer?.cancel();
         setState(() {
           if (_workStartedAt != null) {
@@ -398,7 +501,7 @@ class _HomeViewState extends State<HomeView> {
   }
 
   void _startWorkTimer() {
-    _workStartedAt = DateTime.now();
+    _workStartedAt = _koreaNow;
     _workedDuration = Duration.zero;
 
     _workTimer?.cancel();
@@ -407,7 +510,7 @@ class _HomeViewState extends State<HomeView> {
       if (!mounted || _workStartedAt == null) return;
 
       setState(() {
-        _workedDuration = DateTime.now().difference(_workStartedAt!);
+        _workedDuration = _koreaNow.difference(_workStartedAt!);
       });
     });
   }
@@ -427,7 +530,7 @@ class _HomeViewState extends State<HomeView> {
         .where((schedule) => schedule.status == ScheduleStatus.completed)
         .length;
 
-    final bool canAddSchedule = scheduleCount <= 10;
+    final bool canAddSchedule = scheduleCount < 10;
 
     // 포인트 관련
     final int point = generalSchedules
@@ -637,17 +740,11 @@ class _HomeViewState extends State<HomeView> {
                                     child: SizedBox(
                                       height: 60,
                                       child: OutlinedButton(
-                                        onPressed: () {
-                                          // TODO: 근무 상태 변경 처리
+                                        onPressed:
+                                          // 근무 상태 변경 처리
                                           _status == WorkStatus.completed
-                                              ? () {
-                                              // context.go('/');
-                                              setState(() {
-                                              _status = WorkStatus.overtime;
-                                            });
-                                          }
-                                              : null;
-                                        },
+                                              ? _confirmStartOvertime
+                                              : null,
                                         style: OutlinedButton.styleFrom(
                                           backgroundColor: AppColors.primary,
                                           foregroundColor: AppColors.ink,
