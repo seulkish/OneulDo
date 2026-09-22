@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'dart:async';
+import 'package:geolocator/geolocator.dart';
 
 import '../services/firestore_service.dart';
 
@@ -38,6 +39,7 @@ class _HomeViewState extends State<HomeView> {
     // TODO: implement initState
     super.initState();
     _loadUserProfile();
+    _checkWorkplaceLocation();
   }
 
   Future<void> _loadUserProfile() async {
@@ -59,6 +61,104 @@ class _HomeViewState extends State<HomeView> {
           content: Text('사용자 정보를 불러오지 못했습니다.'),
         ),
       );
+    }
+  }
+
+  Future<void> _checkWorkplaceLocation() async {
+    if (_isCheckingLocation) return;
+
+    setState(() {
+      _isCheckingLocation = true;
+      _locationError = null;
+    });
+
+    try {
+      // 1. 지정 근무지 좌표와 인증 반경 조회
+      final workSettings = await _fs.readWorkSettings();
+
+      if (workSettings == null) {
+        throw Exception('근무지 정보가 없습니다.');
+      }
+
+      final workplaceLatitude =
+      (workSettings['latitude'] as num?)?.toDouble();
+      final workplaceLongitude =
+      (workSettings['longitude'] as num?)?.toDouble();
+      final allowedRadiusMeters =
+      (workSettings['allowedRadiusMeters'] as num?)?.toInt();
+
+      if (workplaceLatitude == null ||
+          workplaceLongitude == null ||
+          allowedRadiusMeters == null) {
+        throw Exception('근무지 위치와 인증 반경을 먼저 설정해주세요.');
+      }
+
+      // 2. 기기 위치 서비스 확인
+      final serviceEnabled =
+      await Geolocator.isLocationServiceEnabled();
+
+      if (!serviceEnabled) {
+        throw Exception('기기의 위치 서비스를 켜주세요.');
+      }
+
+      // 3. 위치 권한 확인
+      var permission = await Geolocator.checkPermission();
+
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.denied) {
+        throw Exception('위치 권한이 필요합니다.');
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        throw Exception('설정에서 위치 권한을 허용해주세요.');
+      }
+
+      // 4. 현재 위치 좌표 조회
+      final currentPosition =
+      await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+
+      // 5. 현재 위치와 근무지 사이 거리 계산
+      final distance = Geolocator.distanceBetween(
+        currentPosition.latitude,
+        currentPosition.longitude,
+        workplaceLatitude,
+        workplaceLongitude,
+      );
+
+      // 6. 인증 반경 이내인지 판단
+      final isWithinWorkplace =
+          distance <= allowedRadiusMeters;
+
+      if (!mounted) return;
+
+      setState(() {
+        _distanceFromWorkplace = distance;
+        _isWithinWorkplace = isWithinWorkplace;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      final message = e
+          .toString()
+          .replaceFirst('Exception: ', '');
+
+      setState(() {
+        _isWithinWorkplace = false;
+        _locationError = message;
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCheckingLocation = false;
+        });
+      }
     }
   }
 
@@ -94,14 +194,31 @@ class _HomeViewState extends State<HomeView> {
 
   // TODO: 실제 시간 및 GPS 검사 결과로 교체
   bool _isWithinWorkTime = true;
-  bool _isWithinWorkplace = true;
+  bool? _isWithinWorkplace;
+
+  bool _isCheckingLocation = false;
+  double? _distanceFromWorkplace;
+  String? _locationError;
 
   bool get _isWorking => _status == WorkStatus.working || _status == WorkStatus.overtime;
 
   bool get _canStartWork {
     return _status == WorkStatus.beforeWork &&
         _isWithinWorkTime &&
-        _isWithinWorkplace;
+        _isWithinWorkplace == true &&
+        !_isCheckingLocation;
+  }
+
+  String get _formattedDistance {
+    final distance = _distanceFromWorkplace;
+
+    if (distance == null) return '-';
+
+    if (distance >= 1000) {
+      return '${(distance / 1000).toStringAsFixed(1)}km';
+    }
+
+    return '${distance.round()}m';
   }
 
   String? get _unavailableReason {
@@ -117,19 +234,46 @@ class _HomeViewState extends State<HomeView> {
       return null;
     }
 
+    if (_isCheckingLocation) {
+      return '현재 위치를 확인하고 있습니다.';
+    }
+
+    if (_locationError != null) {
+      return _locationError;
+    }
+
     if (!_isWithinWorkTime) {
       return '출근 가능 시간대가 아닙니다.';
     }
 
-    if (!_isWithinWorkplace) {
+    if (_isWithinWorkplace != true) {
+      final distance = _distanceFromWorkplace;
+
+      if (distance != null) {
+        return '근무지에서 약 $_formattedDistance 떨어져 있어 출근할 수 없습니다.';
+      }
+
       return '지정된 근무지 반경 안에서만 출근할 수 있습니다.';
     }
 
     return null;
   }
 
-  void _confirmStartWork() {
-    if (!_canStartWork) return;
+  void _confirmStartWork() async {
+    await _checkWorkplaceLocation();
+
+    if (!mounted) return;
+
+    if (!_canStartWork) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _unavailableReason ?? '현재 위치에서는 출근할 수 없습니다.',
+          ),
+        ),
+      );
+      return;
+    }
 
     showConfirmDialog(
       context: context,
@@ -431,6 +575,17 @@ class _HomeViewState extends State<HomeView> {
 
                           const SizedBox(height: 28),
 
+                          // 출근 불가 사유
+                          if (!_isWorking && _unavailableReason != null) ...[
+                            Text(
+                              _unavailableReason!,
+                              style: textTheme.bodyMedium?.copyWith(
+                                color: AppColors.taskRed,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+
                           // 출근/퇴근하기 버튼
                           if (_isWorking) ...[
                             Row(
@@ -520,18 +675,17 @@ class _HomeViewState extends State<HomeView> {
                                   child: CommonButton(
                                     text: _isWorking
                                         ? '퇴근하기'
-                                        : _canStartWork
-                                        ? '출근하기'
-                                        : '출근할 수 없어요',
+                                        : _isCheckingLocation
+                                          ? '위치 확인 중'
+                                          : _canStartWork
+                                            ? '출근하기'
+                                            : '출근할 수 없어요',
                                     version: ButtonVersion.normal,
                                     status: status,
-                                    isEnabled: _isWorking || _canStartWork,
-                                    onPressed: () {
-                                      // TODO: 출근 처리
-                                      _isWorking
-                                          ? _confirmEndWork()
-                                          : _confirmStartWork();
-                                    },
+                                    isEnabled: _isWorking || (!_isCheckingLocation && _canStartWork),
+                                    onPressed: _isWorking
+                                        ? _confirmEndWork
+                                        : _confirmStartWork,
                                   ),
                                 ),
                               ],
