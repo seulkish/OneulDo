@@ -4,14 +4,12 @@ import 'package:go_router/go_router.dart';
 import 'package:oneul/widgets/app_bar.dart';
 
 import '../theme/app_colors.dart';
-import '../widgets/app_button.dart';
-import '../widgets/position_badge.dart';
+
 import '../widgets/position_progress_card.dart';
 import '../widgets/position_path_card.dart';
 import '../widgets/point_history.dart';
 
 import '../models/work_status.dart';
-import '../theme/work_status_style.dart';
 
 class CareerView extends StatelessWidget {
   final WorkStatus status;
