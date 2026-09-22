@@ -216,6 +216,7 @@ class _HomeViewState extends State<HomeView> {
 
   bool _isCheckingLocation = false;
   bool _isStartingWork = false;
+  bool _isEndingWork = false;
   double? _distanceFromWorkplace;
   String? _locationError;
 
@@ -370,6 +371,68 @@ class _HomeViewState extends State<HomeView> {
     }
   }
 
+  Future<void> _endWork() async {
+    if (_isEndingWork) return;
+
+    setState(() {
+      _isEndingWork = true;
+    });
+
+    try {
+      final isUpdated = await _fs.saveEndWork();
+
+      if (!mounted) return;
+
+      if (!isUpdated) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('오늘은 이미 퇴근 처리되었습니다.'),
+          ),
+        );
+        return;
+      }
+
+      final endedAt = _koreaNow;
+
+      _workTimer?.cancel();
+
+      setState(() {
+        if (_workStartedAt != null) {
+          _workedDuration = endedAt.difference(_workStartedAt!);
+        }
+
+        _workEndedAt = endedAt;
+        _status = WorkStatus.completed;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('퇴근 처리가 완료되었습니다.'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      final message = e
+          .toString()
+          .replaceFirst('Exception: ', '');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+        ),
+      );
+
+      debugPrint('퇴근 처리 오류: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isEndingWork = false;
+        });
+      }
+    }
+  }
+
   void _confirmStartWork() async {
     await _checkWorkplaceLocation();
 
@@ -403,18 +466,8 @@ class _HomeViewState extends State<HomeView> {
       title: '퇴근 확인',
       message: '오늘 근무를 종료하고 퇴근 처리할까요?',
       confirmText: '퇴근하기',
-      onConfirm: () {
-        final endedAt = _koreaNow;
-        _workTimer?.cancel();
-        setState(() {
-          if (_workStartedAt != null) {
-            _workedDuration =
-                endedAt.difference(_workStartedAt!);
-          }
-
-          _workEndedAt = endedAt;
-          _status = WorkStatus.completed;
-        });
+      onConfirm: () async {
+        await _endWork();
       },
     );
   }

@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../services/firestore_service.dart';
+
 import '../widgets/sub_page_app_bar.dart';
+import '../widgets/app_button.dart';
+import '../widgets/common_text_field.dart';
+
+import '../models/work_status.dart';
 
 import '../theme/app_colors.dart';
 
@@ -13,12 +19,16 @@ class WorktimeSettingView extends StatefulWidget {
 }
 
 class _WorktimeSettingViewState extends State<WorktimeSettingView> {
+  final FirestoreService _fs = FirestoreService();
+
   int _workHours = 4;
+  int _selectedStartHour = 9;
+  bool _isSaving = false;
 
   static const int _minWorkHours = 1;
   static const int _maxWorkHours = 10;
 
-  int _selectedTimeIndex = 1;
+  // int _selectedTimeIndex = 1;
 
   void _decreaseWorkHours() {
     if (_workHours <= _minWorkHours) return;
@@ -159,9 +169,9 @@ class _WorktimeSettingViewState extends State<WorktimeSettingView> {
 
                   Row(
                     children: [
-                      _buildTimeSlotButton(0, '오전 8시'),
+                      _buildTimeSlotButton(8, '오전 8시'),
                       const SizedBox(width: 10),
-                      _buildTimeSlotButton(1, '오전 9시'),
+                      _buildTimeSlotButton(9, '오전 9시'),
                       const SizedBox(width: 10),
                       _buildTimeSlotButton(10, '오전 10시'),
                     ],
@@ -230,18 +240,73 @@ class _WorktimeSettingViewState extends State<WorktimeSettingView> {
           ],
         ),
       ),
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(28, 12, 28, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CommonButton(
+              text: _isSaving ? '저장 중...' : '변경사항 저장',
+              onPressed: _isSaving ? null : _saveWorkTime,
+              version: ButtonVersion.normal,
+              status: WorkStatus.beforeWork,
+            ),
+            // const SizedBox(height: 8),
+            const SizedBox(height: 10),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _buildTimeSlotButton(int index, String time) {
+  Future<void> _saveWorkTime() async {
+    if (_isSaving) return;
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    // 분으로 바꿔서 계산
+    final int targetStartMinutes = _selectedStartHour * 60;
+    final int availableStartMinutes = targetStartMinutes - 60;
+    final int availableEndMinutes = targetStartMinutes;
+    final int dailyWorkMinutes = _workHours * 60;
+
+    try {
+      await _fs.updateWorkTime(
+        dailyWorkMinutes: dailyWorkMinutes,
+        availableStartMinutes: availableStartMinutes,
+        availableEndMinutes: availableEndMinutes,
+      );
+
+      if (!mounted) return;
+      context.pop();
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('근무 시간 저장에 실패했습니다.'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildTimeSlotButton(int hour, String label) {
     final theme = Theme.of(context);
-    final isSelected = _selectedTimeIndex == index;
+    final isSelected = _selectedStartHour == hour;
 
     return Expanded(
       child: InkWell(
         onTap: () {
           setState(() {
-            _selectedTimeIndex = index;
+            _selectedStartHour = hour;
           });
         },
         borderRadius: BorderRadius.circular(12),
@@ -258,7 +323,7 @@ class _WorktimeSettingViewState extends State<WorktimeSettingView> {
             ),
           ),
           child: Text(
-            '${time}',
+            '${label}',
             style: theme.textTheme.titleMedium?.copyWith(
               color: isSelected ? AppColors.primary : AppColors.ink,
               fontWeight: FontWeight.w600,

@@ -175,6 +175,7 @@ class FirestoreService {
     required double latitude,
     required double longitude,
     required double distanceMeters,
+    required bool isFieldWork,
   }) async {
     final koreaNow = DateTime.now().toUtc().add(
       const Duration(hours: 9),
@@ -205,11 +206,16 @@ class FirestoreService {
       transaction.set(attendanceDocument, {
         'userId': _uid,
         'dateId': dateId,
-        'status': 'working',
+        'status': isFieldWork ? 'fieldWork' : 'working',
         'attendanceStatus': attendanceStatus,
         'startedAt': FieldValue.serverTimestamp(),
         'endedAt': null,
+
         'workedMinutes': 0,
+        'fieldWorkMinutes': 0,
+        'overtimeMinutes': 0,
+        'totalWorkedMinutes': 0,
+
         'requiredWorkMinutes': requiredWorkMinutes,
         'latitude': latitude,
         'longitude': longitude,
@@ -219,6 +225,62 @@ class FirestoreService {
       return true;
     });
 
+  }
+
+  // 퇴근 기록 저장
+  Future<bool> saveEndWork() async {
+    final koreaNow = DateTime.now().toUtc().add(
+      const Duration(hours: 9),
+    );
+
+    final dateId =
+        '${koreaNow.year}-'
+        '${koreaNow.month.toString().padLeft(2, '0')}-'
+        '${koreaNow.day.toString().padLeft(2, '0')}';
+
+    final attendanceDocument = userDocument
+        .collection('attendanceRecords')
+        .doc(dateId);
+
+    return _firestore.runTransaction<bool>((transaction) async {
+      // 당일 출근 기록 조회
+      final snapshot = await transaction.get(attendanceDocument);
+
+      if (!snapshot.exists) {
+        throw Exception('오늘 출근 기록이 없습니다.');
+      }
+
+      final data = snapshot.data();
+
+      if (data == null) {
+        throw Exception('출근 기록을 불러올 수 없습니다.');
+      }
+
+      final startedAt = data['startedAt'] as Timestamp?;
+      final endedAt = data['endedAt'] as Timestamp?;
+
+      if (startedAt == null) {
+        throw Exception('출근 시간이 저장되어 있지 않습니다.');
+      }
+
+      // 중복 퇴근 방지
+      if (endedAt != null) {
+        return false;
+      }
+
+      final workedMinutes = koreaNow
+          .difference(startedAt.toDate())
+          .inMinutes
+          .clamp(0, 1440);
+
+      transaction.update(attendanceDocument, {
+        'endedAt': Timestamp.fromDate(koreaNow),
+        'workedMinutes': workedMinutes,
+        'status': 'completed',
+      });
+
+      return true;
+    });
   }
 }
 
