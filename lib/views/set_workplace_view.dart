@@ -249,7 +249,7 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
         allowedRadiusMeters: _selectedRadius,
       );
 
-      final savedData = await _fs.readWorkplace();
+      final savedData = await _fs.readWorkSettings();
 
       if (!mounted) return;
       if (savedData == null ||
@@ -273,7 +273,7 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
 
   Future<void> _loadWorkplace() async {
     try {
-      final data = await _fs.readWorkplace();
+      final data = await _fs.readWorkSettings();
 
       if (!mounted || data == null) return;
 

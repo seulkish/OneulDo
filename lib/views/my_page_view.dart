@@ -20,12 +20,16 @@ class _MyPageViewState extends State<MyPageView> {
   final FirebaseAuthService _auth = FirebaseAuthService();
   final FirestoreService  _fs = FirestoreService();
   late Future<Map<String, dynamic>?> _userFuture;
+  String _workTimeDescription = '근무 시간 불러오는 중...';
+  String _workPlaceDescription = '근무지 불러오는 중...';
+  String _workGoalDescription = '불러오는 중...';
 
   @override
   void initState() {
     // TODO: implement initState
     super.initState();
     _userFuture = _fs.readUser();
+    _loadWorkSetting();
   }
 
   Future<void> _signOut() async {
@@ -115,6 +119,77 @@ class _MyPageViewState extends State<MyPageView> {
     }
   }
 
+  Future<void> _loadWorkSetting() async {
+    try {
+      final workSettings = await _fs.readWorkSettings();
+
+      if (!mounted) return;
+
+      final workplaceName = workSettings?['workplaceName'];
+
+      final dailyWorkMinutes =
+        (workSettings?['dailyWorkMinutes'])?.toInt();
+      final availableStartMinutes =
+        (workSettings?['availableStartMinutes'])?.toInt();
+      final availableEndMinutes =
+        (workSettings?['availableEndMinutes'])?.toInt();
+
+      final workGoals = workSettings?['goals'];
+
+      if (workplaceName == null) {
+        setState(() {
+          _workPlaceDescription = '근무지를 선택해주세요';
+        });
+      }
+
+      if (dailyWorkMinutes == null ||
+          availableStartMinutes == null ||
+          availableEndMinutes == null) {
+        setState(() {
+          _workTimeDescription = '근무 시간을 설정해주세요';
+        });
+        return;
+      }
+
+      setState(() {
+        _workPlaceDescription = '$workplaceName · 반경 50m';
+
+        _workTimeDescription =
+        '소정 근로 ${_formatWorkDuration(dailyWorkMinutes)} · '
+            '출근 ${_formatTime(availableStartMinutes)} ~ '
+            '${_formatTime(availableEndMinutes)}';
+
+        _workGoalDescription = workGoals.isEmpty ? '준비 목표를 설정해주세요' : workGoals.join(' · ');
+      });
+      // debugPrint('workSettings : $workSettings');
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _workTimeDescription = '근무 시간 정보를 불러오지 못했습니다';
+      });
+    }
+  }
+
+  String _formatWorkDuration(int minutes) {
+    final hours = minutes ~/ 60;
+    final remainingMinutes = minutes % 60;
+
+    if (remainingMinutes == 0) {
+      return '$hours시간';
+    }
+
+    return '$hours시간 $remainingMinutes분';
+  }
+
+  String _formatTime(int minutes) {
+    final hour = minutes ~/ 60;
+    final minute = minutes % 60;
+
+    return '${hour.toString().padLeft(2, '0')}:'
+        '${minute.toString().padLeft(2, '0')}';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -144,6 +219,9 @@ class _MyPageViewState extends State<MyPageView> {
             const SizedBox(height: 16),
 
             _SettingsCard(
+              workPlaceDescription: _workPlaceDescription,
+              workTimeDescription: _workTimeDescription,
+              workGoalDescription: _workGoalDescription,
               onWorkplaceTap: () async {
                 final changed = await context.push<bool>(
                   '/my-page/workplace',
@@ -180,7 +258,8 @@ class _MyPageViewState extends State<MyPageView> {
                   child: const Text('회원 탈퇴'),
                 ),
                 TextButton(onPressed: () async {
-                  await _fs.updateTemp(10);
+                  // await _fs.updateTemp(10);
+                  _loadWorkSetting();
                 }, child: Text('temp'))
               ]
             ),
@@ -280,12 +359,18 @@ class _ProfileSummaryCard extends StatelessWidget {
 }
 
 class _SettingsCard extends StatelessWidget {
+  final String workPlaceDescription;
+  final String workTimeDescription;
+  final String workGoalDescription;
   final VoidCallback onWorkplaceTap;
   final VoidCallback onWorkTimeTap;
   final VoidCallback onWorkPolicyTap;
   final VoidCallback onGoalTap;
 
   const _SettingsCard({
+    required this.workPlaceDescription,
+    required this.workTimeDescription,
+    required this.workGoalDescription,
     required this.onWorkplaceTap,
     required this.onWorkTimeTap,
     required this.onWorkPolicyTap,
@@ -309,13 +394,13 @@ class _SettingsCard extends StatelessWidget {
         children: [
           _SettingsMenuItem(
             title: '근무지',
-            description: '중앙도서관 3층 열람실 · 반경 50m',
+            description: workPlaceDescription,
             onTap: onWorkplaceTap,
           ),
           const Divider(height: 1),
           _SettingsMenuItem(
             title: '근무 시간',
-            description: '소정 근로 4시간 · 출근 08:00 ~ 11:00',
+            description: workTimeDescription,
             onTap: onWorkTimeTap,
           ),
           const Divider(height: 1),
@@ -327,7 +412,7 @@ class _SettingsCard extends StatelessWidget {
           // const Divider(height: 1),
           _SettingsMenuItem(
             title: '준비 목표',
-            description: '공기업 · 자격증',
+            description: workGoalDescription,
             onTap: onGoalTap,
           ),
         ],

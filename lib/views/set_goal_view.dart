@@ -1,6 +1,6 @@
 // filename: ../views/set_goal_view.dart
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../services/firestore_service.dart';
 
 import 'package:go_router/go_router.dart';
 import '../widgets/confirm_dialog.dart';
@@ -22,13 +22,11 @@ class _SetGoalViewState extends State<SetGoalView> {
 
   final Set<String> _selectedGoals = {..._defaultGoals};
 
-  static const String _goalsKey = 'selected_goals';
-
-  final SharedPreferencesAsync _preferences = SharedPreferencesAsync();
+  final FirestoreService _fs = FirestoreService();
 
   final Set<String> _customGoals = {};
 
-  final List<String> _goals = ['공기업', '대기업', '공무원', '자격증', '어학'];
+  final List<String> _goals = ['공기업', '대기업', '공무원', '자격증', '어학', '근면'];
 
   void _toggleGoal(String goal) {
     setState(() {
@@ -105,35 +103,79 @@ class _SetGoalViewState extends State<SetGoalView> {
   }
 
   Future<void> _loadGoals() async {
-    final savedGoals = await _preferences.getStringList(_goalsKey);
+    try {
+      final data = await _fs.readWorkSettings();
 
-    if (!mounted || savedGoals == null) return;
+      if (!mounted || data == null) return;
 
-    setState(() {
-      _selectedGoals
-        ..clear()
-        ..addAll(savedGoals);
-    });
+      final goalsData = data['goals'];
+
+      // 아직 목표를 설정하지 않은 신규 사용자는 기본 선택 유지
+      if (goalsData == null) return;
+
+      final savedGoals = List<String>.from(goalsData);
+
+      setState(() {
+        _selectedGoals
+          ..clear()
+          ..addAll(savedGoals);
+
+        for (final goal in savedGoals) {
+          if (!_goals.contains(goal)) {
+            _goals.add(goal);
+            _customGoals.add(goal);
+          }
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('목표를 불러오지 못했습니다.')),
+      );
+    }
   }
 
-  Future<void> _saveGoals() async {
-    await _preferences.setStringList(_goalsKey, _selectedGoals.toList());
+  Future<bool> _saveGoals() async {
+    try {
+      await _fs.updateGoal(
+        goals: _selectedGoals.toList(),
+      );
+
+      return true;
+    } catch (_) {
+      if (!mounted) return false;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('목표 저장에 실패했습니다.')),
+      );
+
+      return false;
+    }
   }
 
   Future<void> _start() async {
     if (_selectedGoals.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('목표를 한 개 이상 선택해주세요.'),
-        ),
+        const SnackBar(content: Text('목표를 한 개 이상 선택해주세요.')),
       );
       return;
     }
 
-    await _saveGoals();
+    try {
+      await _fs.completeOnboarding(
+        goals: _selectedGoals.toList(),
+      );
 
-    if (!mounted) return;
-    context.go('/');
+      if (!mounted) return;
+      context.go('/');
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('목표 저장에 실패했습니다.')),
+      );
+    }
   }
 
   void _skip() {
@@ -148,15 +190,18 @@ class _SetGoalViewState extends State<SetGoalView> {
   }
 
   Future<void> _confirmSkip() async {
-    debugPrint('건너뛰기 확인 실행');
+    try {
+      await _fs.completeOnboarding(goals: []);
 
-    _selectedGoals.clear();
-    await _saveGoals();
+      if (!mounted) return;
+      context.go('/');
+    } catch (_) {
+      if (!mounted) return;
 
-    debugPrint('저장된 목표: $_selectedGoals');
-
-    if (!mounted) return;
-    context.go('/');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('설정을 저장하지 못했습니다.')),
+      );
+    }
   }
 
   @override

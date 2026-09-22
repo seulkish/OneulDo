@@ -46,7 +46,7 @@ class FirestoreService {
           'dailyWorkMinutes': null,
           'availableStartMinutes': null,
           'availableEndMinutes': null,
-          'goal': null,
+          'goals': null,
         },
 
         'createdAt': FieldValue.serverTimestamp(),
@@ -66,7 +66,7 @@ class FirestoreService {
   }
 
   // 근무지 설정 조회
-  Future<Map<String, dynamic>?> readWorkplace() async {
+  Future<Map<String, dynamic>?> readWorkSettings() async {
     final snapshot = await userDocument.get();
 
     if (!snapshot.exists) return null;
@@ -132,25 +132,28 @@ class FirestoreService {
   }) async {
     await userDocument.update({
       'workSettings.dailyWorkMinutes': dailyWorkMinutes,
-      'workSettings.availableStartTime': availableStartMinutes,
-      'workSettings.availableEndTime': availableEndMinutes,
+      'workSettings.availableStartMinutes': availableStartMinutes,
+      'workSettings.availableEndMinutes': availableEndMinutes,
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
 
   // 목표 설정 수정
   Future<void> updateGoal({
-    required String goal,
+    required List<String> goals,
   }) async {
     await userDocument.update({
-      'workSettings.goal': goal,
+      'workSettings.goals': goals,
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
 
   // 온보딩 완료 처리
-  Future<void> completeOnboarding() async {
+  Future<void> completeOnboarding({
+    required List<String> goals,
+  }) async {
     await userDocument.update({
+      'workSettings.goals': goals,
       'onboardingCompleted': true,
       'updatedAt': FieldValue.serverTimestamp(),
     });

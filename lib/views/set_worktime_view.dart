@@ -276,7 +276,7 @@ class _SetWorkTimeViewState extends State<SetWorkTimeView> {
             Center(
               child: TextButton(
                 onPressed: () async {
-                  await _fs.completeOnboarding();
+                  await _fs.completeOnboarding(goals: []);
                   if (!context.mounted) return;
                   context.go('/');
                 },
