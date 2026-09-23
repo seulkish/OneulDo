@@ -190,7 +190,7 @@ class _LeaveRequestViewState extends State<LeaveRequestView> {
       try {
         await _fs.validateFieldWorkRequest();
       } catch (e) {
-        final errorMessage = e.toString().replaceFirst('Exception', '');
+        final errorMessage = e.toString().replaceFirst('Exception: ', '');
         _showRequestError(errorMessage);
         return;
       }
@@ -260,10 +260,10 @@ class _LeaveRequestViewState extends State<LeaveRequestView> {
                     onPressed: () {
                       Navigator.of(dialogContext).pop();
                     },
-                    child: const Text('상신 취소'),
                     style: OutlinedButton.styleFrom(
                       minimumSize: Size.fromHeight(50)
                     ),
+                    child: const Text('상신 취소'),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -273,10 +273,10 @@ class _LeaveRequestViewState extends State<LeaveRequestView> {
                       Navigator.of(dialogContext).pop();
                       context.push('/leave/approval');
                     },
-                    child: const Text('승인 페이지 가기'),
                     style: OutlinedButton.styleFrom(
                       minimumSize: Size.fromHeight(50)
                     ),
+                    child: const Text('승인 페이지 가기'),
                   ),
                 ),
               ],
@@ -290,7 +290,7 @@ class _LeaveRequestViewState extends State<LeaveRequestView> {
 }
 
 class _LeaveSummaryCard extends StatelessWidget {
-  const _LeaveSummaryCard({super.key});
+  const _LeaveSummaryCard();
 
   @override
   Widget build(BuildContext context) {
@@ -326,7 +326,7 @@ class _LeaveSummaryCard extends StatelessWidget {
 }
 
 class _LeaveConditionCard extends StatefulWidget {
-  const _LeaveConditionCard({super.key});
+  const _LeaveConditionCard();
 
   @override
   State<_LeaveConditionCard> createState() => _LeaveConditionCardState();
@@ -481,7 +481,7 @@ class _LeaveRequestCard extends StatelessWidget {
           const SizedBox(height: 12),
 
           DropdownButtonFormField<String>(
-            value: selectedType,
+            initialValue: selectedType,
             decoration: const InputDecoration(
               border: OutlineInputBorder(),
             ),

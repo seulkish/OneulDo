@@ -560,11 +560,11 @@ class _HomeViewState extends State<HomeView> {
     } catch (e) {
       if (!mounted) return;
 
-      final message = e.toString().replaceFirst('Exception: ', '');
+      final errorMessage = e.toString().replaceFirst('Exception: ', '');
 
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      ).showSnackBar(SnackBar(content: Text(errorMessage)));
 
       debugPrint('퇴근 처리 오류: $e');
     } finally {
