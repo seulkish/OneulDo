@@ -105,6 +105,30 @@ class FirestoreService {
     return snapshot.data();
   }
 
+  Future<void> validateFieldWorkRequest() async {
+    final snapshot = await _todayAttendanceDocument.get();
+
+    if (!snapshot.exists) {
+      throw Exception('출근 후에만 외근을 신청할 수 있습니다.');
+    }
+
+    final data = snapshot.data();
+
+    if (data == null) {
+      throw Exception('오늘 근무 기록을 불러올 수 없습니다.');
+    }
+
+    final status = data['status'] as String?;
+
+    if (status == 'fieldWork') {
+      throw Exception('이미 외근 중입니다.');
+    }
+
+    if (status != 'working') {
+      throw Exception('현재 근무 중인 상태에서만 외근을 신청할 수 있습니다.');
+    }
+  }
+
   // Update 사용자 정보 수정
   Future<void> updateUser({
     String? nickname,

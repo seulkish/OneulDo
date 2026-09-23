@@ -3,11 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import '../widgets/app_bar.dart';
 import '../theme/app_colors.dart';
+
+import '../services/firestore_service.dart';
+
+import '../widgets/app_bar.dart';
 import '../widgets/summary_item.dart';
-import '../models/work_status.dart';
-import '../theme/work_status_style.dart';
 import '../widgets/app_button.dart';
 
 class ApprovalHistory {
@@ -32,8 +33,8 @@ class LeaveRequestView extends StatefulWidget {
 }
 
 class _LeaveRequestViewState extends State<LeaveRequestView> {
-  final TextEditingController _reasonController =
-  TextEditingController();
+  final FirestoreService _fs = FirestoreService();
+  final TextEditingController _reasonController = TextEditingController();
 
   String _selectedType = '반차(오후)';
   bool _isAfternoon = true;
@@ -155,16 +156,44 @@ class _LeaveRequestViewState extends State<LeaveRequestView> {
     }
   }
 
-  void _submitRequest() {
+  void _showRequestError(String message) {
+    if (!mounted) return;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('신청할 수 없습니다'),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('확인'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _submitRequest() async {
     final reason = _reasonController.text.trim();
 
     if (reason.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('사유를 입력해주세요.'),
-        ),
-      );
+      _showRequestError('사유를 입력해주세요.');
       return;
+    }
+
+    if (_selectedType == '외근') {
+      try {
+        await _fs.validateFieldWorkRequest();
+      } catch (e) {
+        final errorMessage = e.toString().replaceFirst('Exception', '');
+        _showRequestError(errorMessage);
+        return;
+      }
     }
 
     final documentNumber = 'ON-2026-0902-02';

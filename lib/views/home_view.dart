@@ -490,9 +490,7 @@ class _HomeViewState extends State<HomeView> {
       if (!mounted) return;
 
       if (!isCreated) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('오늘은 이미 출근 처리되었습니다.')));
+        _showStatusError('오늘은 이미 출근 처리되었습니다.');
         return;
       }
 
@@ -546,9 +544,7 @@ class _HomeViewState extends State<HomeView> {
       if (!mounted) return;
 
       if (!isUpdated) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('오늘은 이미 퇴근 처리되었습니다.')));
+        _showStatusError('오늘은 이미 퇴근 처리되었습니다.');
         return;
       }
 
