@@ -10,3 +10,14 @@ enum WorkStatus {
   absent,     // 결근
 }
 
+WorkStatus workStatusFromFirestore(String? value) {
+  return switch (value) {
+    'working' => WorkStatus.working,
+    'fieldWork' => WorkStatus.fieldWork,
+    'completed' => WorkStatus.completed,
+    'vacation' => WorkStatus.vacation,
+    'overtime' => WorkStatus.overtime,
+    'absent' => WorkStatus.absent,
+    _ => WorkStatus.beforeWork,
+  };
+}

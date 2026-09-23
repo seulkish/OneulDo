@@ -16,8 +16,24 @@ class FirestoreService {
     return user.uid;
   }
 
+  String get _todayDateId {
+    final koreaNow = DateTime.now().toUtc().add(
+      const Duration(hours: 9),
+    );
+
+    return '${koreaNow.year}-'
+        '${koreaNow.month.toString().padLeft(2, '0')}-'
+        '${koreaNow.day.toString().padLeft(2, '0')}';
+  }
+
   DocumentReference<Map<String, dynamic>> get userDocument {
     return _firestore.collection('users').doc(_uid);
+  }
+
+  DocumentReference<Map<String, dynamic>> get _todayAttendanceDocument {
+    return userDocument
+        .collection('attendanceRecords')
+        .doc(_todayDateId);
   }
 
   // Create 사용자 정보 저장
@@ -34,8 +50,8 @@ class FirestoreService {
         'profileImageUrl': null,
         'onboardingCompleted': false,
 
-        'jobtitle': '인턴',
-        'point': 0,
+        'jobTitle': '인턴',
+        'points': 0,
 
         'workSettings': {
           'workplaceName': null,
@@ -79,13 +95,23 @@ class FirestoreService {
     return Map<String, dynamic>.from(workSettings);
   }
 
+  Future<Map<String, dynamic>?> readTodayAttendance() async {
+    final snapshot = await _todayAttendanceDocument.get();
+
+    if (!snapshot.exists) {
+      return null;
+    }
+
+    return snapshot.data();
+  }
+
   // Update 사용자 정보 수정
   Future<void> updateUser({
     String? nickname,
     String? phone,
     String? profileImageUrl,
-    String? jobtitle,
-    int? point,
+    String? jobTitle,
+    int? points,
   }) async {
     final updateData = <String, dynamic> {
       'updatedAt' : FieldValue.serverTimestamp(),
@@ -93,8 +119,8 @@ class FirestoreService {
     if (nickname != null) updateData['nickname'] = nickname;
     if (phone != null) updateData['phone'] = phone;
     if (profileImageUrl != null) updateData['profileImageUrl'] = profileImageUrl;
-    if (jobtitle != null) updateData['jobtitle'] = jobtitle;
-    if (point != null) updateData['point'] = point;
+    if (jobTitle != null) updateData['jobTitle'] = jobTitle;
+    if (points != null) updateData['points'] = points;
     await userDocument.update(updateData);
   }
 
@@ -186,9 +212,7 @@ class FirestoreService {
         '${koreaNow.month.toString().padLeft(2, '0')}-'
         '${koreaNow.day.toString().padLeft(2, '0')}';
 
-    final attendanceDocument = userDocument
-        .collection('attendanceRecords')
-        .doc(dateId);
+    final attendanceDocument = _todayAttendanceDocument;
 
     final currentMinutes = koreaNow.hour * 60 + koreaNow.minute;
 
@@ -239,19 +263,7 @@ class FirestoreService {
     // 실제 시간 계산 및 Timestamp 저장에 사용
     final now = DateTime.now();
 
-    // 한국 날짜의 attendanceRecords 문서 ID를 만드는 데만 사용
-    final koreaNow = now.toUtc().add(
-      const Duration(hours: 9),
-    );
-
-    final dateId =
-        '${koreaNow.year}-'
-        '${koreaNow.month.toString().padLeft(2, '0')}-'
-        '${koreaNow.day.toString().padLeft(2, '0')}';
-
-    final attendanceDocument = userDocument
-        .collection('attendanceRecords')
-        .doc(dateId);
+    final attendanceDocument = _todayAttendanceDocument;
 
     return _firestore.runTransaction<bool>((transaction) async {
       final snapshot = await transaction.get(attendanceDocument);
@@ -399,18 +411,7 @@ class FirestoreService {
   Future<bool> startOvertime() async {
     final now = DateTime.now();
 
-    final koreaNow = now.toUtc().add(
-      const Duration(hours: 9),
-    );
-
-    final dateId =
-        '${koreaNow.year}-'
-        '${koreaNow.month.toString().padLeft(2, '0')}-'
-        '${koreaNow.day.toString().padLeft(2, '0')}';
-
-    final attendanceDocument = userDocument
-        .collection('attendanceRecords')
-        .doc(dateId);
+    final attendanceDocument = _todayAttendanceDocument;
 
     return _firestore.runTransaction<bool>((transaction) async {
       final snapshot = await transaction.get(attendanceDocument);

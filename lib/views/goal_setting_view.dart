@@ -20,8 +20,6 @@ class _GoalSettingViewState extends State<GoalSettingView> {
 
   final Set<String> _selectedGoals = {..._defaultGoals};
 
-  // static const String _goalsKey = 'selected_goals';
-
   final SharedPreferencesAsync _preferences = SharedPreferencesAsync();
 
   final Set<String> _customGoals = {};
