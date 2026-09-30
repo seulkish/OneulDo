@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../services/firestore_service.dart';
+import '../services/place_search_service.dart';
 
 import '../theme/app_colors.dart';
 import '../widgets/app_button.dart';
@@ -41,39 +42,32 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
   double? _currentLatitude;
   double? _currentLongitude;
 
+  final PlaceSearchService _placeSearch = PlaceSearchService();
 
-  final List<WorkplaceOption> _workplaces = [
-    const WorkplaceOption(
-      name: '중앙도서관 3층 열람실',
-      address: '서울 서대문구 신촌동',
-      latitude: 37.5595,
-      longitude: 126.9425,
-      distanceMeters: 240,
-    ),
-    const WorkplaceOption(
-      name: '스터디카페 라운지 신촌점',
-      address: '서울 서대문구 연세로',
-      latitude: 37.5578,
-      longitude: 126.9368,
-      distanceMeters: 620,
-    ),
-    const WorkplaceOption(
-      name: '서대문 청년센터 스터디룸',
-      address: '서울 서대문구 모래내로',
-      latitude: 37.5732,
-      longitude: 126.9237,
-      distanceMeters: 1100,
-    ),
-  ];
+  List<WorkplaceOption> _workplaces = [];
+
+  bool _isPlacesLoading = false;
+  String? _placesError;
 
   @override
   void initState() {
     // TODO: implement initState
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _initializeWorkplace();
+      }
       _getCurrentLocation();
       _loadWorkplace();
     });
+  }
+
+  Future<void> _initializeWorkplace() async {
+    await _getCurrentLocation();
+
+    if (!mounted) return;
+
+    await _loadWorkplace();
   }
 
   @override
@@ -81,6 +75,48 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
     // TODO: implement dispose
     _workplaceController.dispose();
     super.dispose();
+  }
+
+  // 카카오맵
+  Future<void> _loadNearbyPlaces({
+    required double latitude,
+    required double longitude,
+  }) async {
+    if (!mounted) return;
+
+    setState(() {
+      _isPlacesLoading = true;
+      _placesError = null;
+      _selectedPlaceIndex = null;
+      _workplaces = [];
+    });
+
+    try {
+      final places = await _placeSearch.searchNearby(
+        latitude: latitude,
+        longitude: longitude,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _workplaces = places;
+      });
+    } catch (e) {
+      debugPrint('주변 장소 검색 오류: $e');
+
+      if (!mounted) return;
+
+      setState(() {
+        _placesError = '주변 장소를 불러오지 못했습니다. 다시 조회해주세요.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPlacesLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _getCurrentLocation() async {
@@ -170,6 +206,13 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
 
         _showLocationSnackBar(message: '주소를 불러오지 못해 좌표로 표시합니다.');
       }
+
+      // 주소 변환이 실패해도 GPS 좌표로 장소를 검색
+      await _loadNearbyPlaces(
+        latitude: position.latitude,
+        longitude: position.longitude,
+      );
+
     } catch (e) {
       // GPS 위치 조회 자체가 실패한 경우
       debugPrint('위치 조회 오류: $e');
@@ -194,6 +237,16 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
     ].whereType<String>().where((value) => value.trim().isNotEmpty);
 
     return parts.join(' ');
+  }
+
+  String _formatDistance(double? meters) {
+    if (meters == null) return '거리 정보 없음';
+
+    if (meters >= 1000) {
+      return '${(meters / 1000).toStringAsFixed(1)}km';
+    }
+
+    return '${meters.round()}m';
   }
 
   void _setLocationError(String message) {
@@ -233,8 +286,12 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
   Future<void> _saveWorkplace() async {
     final selectedIndex = _selectedPlaceIndex;
 
-    if (selectedIndex == null) {
-      _showLocationSnackBar(message: '근무지를 선택해주세요.');
+    if (_isLocationLoading ||
+        _isPlacesLoading ||
+        selectedIndex == null ||
+        selectedIndex < 0 ||
+        selectedIndex >= _workplaces.length) {
+      _showLocationSnackBar(message: '목록에서 근무지를 선택해주세요.');
       return;
     }
 
@@ -277,7 +334,7 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
 
       if (!mounted || data == null) return;
 
-      final workplace = data['workplace'] as String?;
+      final workplace = data['workplaceName'] as String?;
       final savedIndex = _workplaces.indexWhere(
             (place) => place.name == workplace,
       );
@@ -287,7 +344,7 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
         _selectedPlaceIndex = savedIndex == -1 ? null : savedIndex;
 
         _selectedRadius =
-            (data['radiusMeters'] as num?)?.toInt() ?? 50;
+            (data['allowedRadiusMeters'] as num?)?.toInt() ?? 50;
     });
     } catch (e) {
       if (!mounted) return;
@@ -459,6 +516,27 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
               ),
               const SizedBox(height: 12),
 
+              if (_isPlacesLoading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                )
+              else if (_placesError != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(_placesError!),
+                )
+              else if (!_isLocationLoading &&
+                    _locationError == null &&
+                    _currentLatitude != null &&
+                    _workplaces.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text('주변 5km 안에서 검색된 장소가 없습니다.'),
+                  ),
+
               ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -474,8 +552,8 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
                     index: index,
                     title: place.name,
                     description:
-                    '${place.address} · 현재 위치에서 '
-                        '${place.distanceMeters?.round() ?? 0}m',
+                      '${place.address} · 현재 위치에서 '
+                          '${place.distanceMeters?.round() ?? 0}m',
                   );
                 },
               ),
