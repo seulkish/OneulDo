@@ -479,6 +479,7 @@ class _HomeViewState extends State<HomeView> {
       final isFieldWork = await _fs.hasApprovedFieldWorkForToday();
 
       final isCreated = await _fs.saveAttendanceRecord(
+        workplaceName: _workSettings?['workplaceName'],
         requiredWorkMinutes: requiredWorkMinutes,
         availableEndMinutes: availableEndMinutes,
         latitude: position.latitude,
@@ -780,9 +781,9 @@ class _HomeViewState extends State<HomeView> {
       final hours = minutes ~/ 60;
       final remainingMinutes = minutes % 60;
 
-      if (remainingMinutes == 0) {
-        return '$hours시간';
-      }
+      // if (remainingMinutes == 0) {
+      //   return '$hours시간';
+      // }
 
       return '$hours시간 $remainingMinutes분';
     }

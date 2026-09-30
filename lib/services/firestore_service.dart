@@ -105,6 +105,77 @@ class FirestoreService {
     return snapshot.data();
   }
 
+  // 날짜를 근태 문서 ID 형식으로 변환
+  // date는 조회하려는 한국 달력 날짜를 전달합니다.
+  String _dateId(DateTime date) {
+    return '${date.year}-'
+        '${date.month.toString().padLeft(2, '0')}-'
+        '${date.day.toString().padLeft(2, '0')}';
+  }
+
+  // 일별 근태 조회
+  Future<Map<String, dynamic>?> readAttendanceByDate(
+      DateTime date,
+      ) async {
+    final snapshot = await userDocument
+        .collection('attendanceRecords')
+        .doc(_dateId(date))
+        .get();
+
+    final data = snapshot.data();
+
+    if (data == null) return null;
+
+    return {
+      ...data,
+      'dateId': snapshot.id,
+    };
+  }
+
+  // 기간별 근태 조회
+  // 시작일 포함, 종료일 제외
+  Future<List<Map<String, dynamic>>> readAttendanceByPeriod({
+    required DateTime startDate,
+    required DateTime endDateExclusive,
+  }) async {
+    final startId = _dateId(startDate);
+    final endId = _dateId(endDateExclusive);
+
+    if (startId.compareTo(endId) >= 0) {
+      throw ArgumentError('종료일은 시작일 이후여야 합니다.');
+    }
+
+    final snapshot = await userDocument
+        .collection('attendanceRecords')
+        .where(
+      FieldPath.documentId,
+      isGreaterThanOrEqualTo: startId,
+    )
+        .where(
+      FieldPath.documentId,
+      isLessThan: endId,
+    )
+        .orderBy(FieldPath.documentId)
+        .get();
+
+    return snapshot.docs.map((document) {
+      return {
+        ...document.data(),
+        'dateId': document.id,
+      };
+    }).toList();
+  }
+
+  // 월별 근태 조회
+  Future<List<Map<String, dynamic>>> readMonthlyAttendance(
+      DateTime month,
+      ) {
+    return readAttendanceByPeriod(
+      startDate: DateTime(month.year, month.month, 1),
+      endDateExclusive: DateTime(month.year, month.month + 1, 1),
+    );
+  }
+
   Future<void> validateFieldWorkRequest() async {
     final snapshot = await _todayAttendanceDocument.get();
 
@@ -226,6 +297,7 @@ class FirestoreService {
     required double longitude,
     required double distanceMeters,
     required bool isFieldWork,
+    String? workplaceName,
   }) async {
     final koreaNow = DateTime.now().toUtc().add(
       const Duration(hours: 9),
@@ -254,6 +326,7 @@ class FirestoreService {
       transaction.set(attendanceDocument, {
         'userId': _uid,
         'dateId': dateId,
+        'workplace': workplaceName,
         'status': isFieldWork ? 'fieldWork' : 'working',
         'attendanceStatus': attendanceStatus,
 

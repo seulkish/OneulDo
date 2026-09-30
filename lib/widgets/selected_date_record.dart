@@ -1,5 +1,6 @@
 // filename: widgets/selected_date_record.dart
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/work_status.dart';
 import '../theme/app_colors.dart';
@@ -8,17 +9,58 @@ import '../widgets/status_badge.dart';
 
 class SelectedDateRecord extends StatelessWidget {
   final DateTime selectedDay;
-  final WorkStatus status;
+  final Map<String, dynamic>? record;
 
   const SelectedDateRecord({
     super.key,
     required this.selectedDay,
-    required this.status,
+    required this.record,
   });
+
+  String _formatTime(dynamic value) {
+    if (value is! Timestamp) return '-';
+
+    final koreaTime =
+    value.toDate().toUtc().add(const Duration(hours: 9));
+
+    return '${koreaTime.hour.toString().padLeft(2, '0')}:'
+        '${koreaTime.minute.toString().padLeft(2, '0')}';
+  }
+
+  int _minutes(dynamic value) {
+    return (value as num?)?.toInt() ?? 0;
+  }
+
+  String _formatDuration(int minutes) {
+    return '${minutes ~/ 60}h ${minutes % 60}m';
+  }
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final data = record;
+
+    final status = data == null
+        ? null
+        : workStatusFromFirestore(data['status'] as String?);
+
+    final totalMinutes = _minutes(data?['totalWorkedMinutes']);
+    final fieldWorkMinutes = _minutes(data?['fieldWorkMinutes']);
+    final overtimeMinutes = _minutes(data?['overtimeMinutes']);
+
+    final isWorking =
+        status == WorkStatus.working ||
+            status == WorkStatus.fieldWork ||
+            status == WorkStatus.overtime;
+
+    final attendanceLabel = switch (data?['attendanceStatus']) {
+      'normal' => '정상 출근',
+      'late' => '지각',
+      _ => null,
+    };
+
+    final workplaceName = data?['workplaceName'] as String?;
+    final earnedPoint = (data?['earnedPoint'] as num?)?.toInt();
 
     return Container(
       width: double.infinity,
@@ -31,91 +73,128 @@ class SelectedDateRecord extends StatelessWidget {
         ),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          // 좁은 화면에서도 제목과 배지가 넘치지 않도록 Wrap 사용
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Text(
-                '${selectedDay.month}월 ${selectedDay.day}일 근태 기록',
+                '${selectedDay.month}월 '
+                    '${selectedDay.day}일 근태 기록',
                 style: textTheme.titleMedium,
               ),
-              const SizedBox(width: 8),
-              StatusBadge(
-                status: status,
-                label: status.monthlyLabel,
+              if (status != null)
+                StatusBadge(
+                  status: status,
+                  label: status.label,
+                ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          if (data == null)
+            Text(
+              '해당 날짜의 근태 기록이 없습니다.',
+              style: textTheme.bodyMedium?.copyWith(
+                color: AppColors.inkMuted,
               ),
-              const Spacer(),
+            )
+          else ...[
+            Row(
+              children: [
+                Expanded(
+                  child: _WorkSummaryItem(
+                    label: '출근',
+                    value: _formatTime(data['startedAt']),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _WorkSummaryItem(
+                    label: '퇴근',
+                    value: _formatTime(data['endedAt']),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _WorkSummaryItem(
+                    label: '근무 시간',
+                    value: _formatDuration(totalMinutes),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            if (attendanceLabel != null)
               Text(
-                '* 날짜를 선택하세요',
-                style: textTheme.labelSmall?.copyWith(
+                '출근 구분: $attendanceLabel',
+                style: textTheme.bodyMedium,
+              ),
+
+            if (fieldWorkMinutes > 0) ...[
+              const SizedBox(height: 8),
+              Text(
+                '외근 시간: ${_formatDuration(fieldWorkMinutes)}',
+                style: textTheme.bodyMedium,
+              ),
+            ],
+
+            if (overtimeMinutes > 0 ||
+                data['overtimeStartedAt'] != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                '추가 근무 시간: ${_formatDuration(overtimeMinutes)}',
+                style: textTheme.bodyMedium,
+              ),
+              Text(
+                '추가 근무 종료: '
+                    '${_formatTime(data['overtimeEndedAt'])}',
+                style: textTheme.bodyMedium,
+              ),
+            ],
+
+            if (isWorking) ...[
+              const SizedBox(height: 8),
+              Text(
+                '근무 시간은 종료 후 저장된 값으로 반영됩니다.',
+                style: textTheme.bodySmall?.copyWith(
                   color: AppColors.inkMuted,
-                  fontWeight: FontWeight.w300,
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 20),
-          const Row(
-            children: [
-              Expanded(
-                child: _WorkSummaryItem(
-                  label: '출근',
-                  value: '10:06',
+
+            const SizedBox(height: 16),
+
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    workplaceName == null || workplaceName.isEmpty
+                        ? '근무지 정보 없음'
+                        : workplaceName,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.bodyMedium,
+                  ),
                 ),
-              ),
-              SizedBox(width: 10),
-              Expanded(
-                child: _WorkSummaryItem(
-                  label: '퇴근',
-                  value: '14:44',
-                ),
-              ),
-              SizedBox(width: 10),
-              Expanded(
-                child: _WorkSummaryItem(
-                  label: '근무 시간',
-                  value: '10h 20m',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '중앙도서관 3층 열람실',
-                  overflow: TextOverflow.ellipsis,
-                  style: textTheme.bodyMedium,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '+65P',
-                style: textTheme.bodyMedium?.copyWith(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          const _StudyRecordItem(
-            startTime: '10:14',
-            title: '자소서 2문항 다듬기',
-            duration: '1시간 55분',
-          ),
-          const SizedBox(height: 12),
-          const _StudyRecordItem(
-            startTime: '12:14',
-            title: '기업 분석 정리',
-            duration: '1시간 30분',
-          ),
-          const SizedBox(height: 12),
-          const _StudyRecordItem(
-            startTime: '13:49',
-            title: '스터디 준비',
-            duration: '55분',
-          ),
+                if (earnedPoint != null) ...[
+                  const SizedBox(width: 8),
+                  Text(
+                    '${earnedPoint >= 0 ? '+' : ''}${earnedPoint}P',
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
         ],
       ),
     );
