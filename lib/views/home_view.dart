@@ -61,6 +61,90 @@ class _HomeViewState extends State<HomeView> {
     }
   }
 
+  Map<String, Map<String, dynamic>> _weeklyRecords = {};
+  bool _isLoadingWeekly = true;
+  String? _weeklyError;
+
+  String _weeklyDateId(DateTime date) {
+    return '${date.year}-'
+        '${date.month.toString().padLeft(2, '0')}-'
+        '${date.day.toString().padLeft(2, '0')}';
+  }
+
+  // 한국 날짜 기준 이번 주 월요일
+  DateTime get _weekStart {
+    final now = _koreaNow;
+    final today = DateTime(now.year, now.month, now.day);
+
+    return today.subtract(Duration(days: today.weekday - 1));
+  }
+
+  List<DateTime> get _weekDays => List.generate(
+    7,
+        (index) => _weekStart.add(Duration(days: index)),
+  );
+
+  int _weeklyMinutesFor(DateTime date) {
+    // 오늘은 홈 화면의 타이머 값을 사용
+    if (_weeklyDateId(date) == _weeklyDateId(_koreaNow)) {
+      return _workedDuration.inMinutes;
+    }
+
+    final record = _weeklyRecords[_weeklyDateId(date)];
+
+    return (record?['totalWorkedMinutes'] as num?)?.toInt() ?? 0;
+  }
+
+  WorkStatus _weeklyStatusFor(DateTime date) {
+    if (_weeklyDateId(date) == _weeklyDateId(_koreaNow)) {
+      return _status;
+    }
+
+    final record = _weeklyRecords[_weeklyDateId(date)];
+
+    return workStatusFromFirestore(record?['status'] as String?);
+  }
+
+  String get _formattedWeeklyTotal {
+    final totalMinutes = _weekDays.fold<int>(
+      0,
+          (total, date) => total + _weeklyMinutesFor(date),
+    );
+
+    return '총 ${totalMinutes ~/ 60}시간 ${totalMinutes % 60}분';
+  }
+
+  Future<void> _loadWeeklyAttendance() async {
+    try {
+      final start = _weekStart;
+
+      final records = await _fs.readAttendanceByPeriod(
+        startDate: start,
+        endDateExclusive: start.add(const Duration(days: 7)),
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _weeklyRecords = {
+          for (final record in records)
+            record['dateId'] as String: record,
+        };
+        _weeklyError = null;
+        _isLoadingWeekly = false;
+      });
+    } catch (e) {
+      debugPrint('이번 주 근무 조회 실패: $e');
+
+      if (!mounted) return;
+
+      setState(() {
+        _weeklyError = '이번 주 근무 기록을 불러오지 못했어요.';
+        _isLoadingWeekly = false;
+      });
+    }
+  }
+
   Future<void> _checkWorkplaceLocation() async {
     if (_isCheckingLocation) return;
 
@@ -237,6 +321,7 @@ class _HomeViewState extends State<HomeView> {
     await Future.wait([_loadUserProfile(), _checkWorkplaceLocation()]);
 
     await _loadTodayAttendance();
+    await _loadWeeklyAttendance();
   }
 
   WorkStatus _status = WorkStatus.beforeWork;
@@ -1045,55 +1130,55 @@ class _HomeViewState extends State<HomeView> {
                           '이번 주 근무',
                           style: textTheme.titleMedium?.copyWith(),
                         ),
-                        Text('총 21시간 40분'),
+                        Text(
+                          _isLoadingWeekly || _weeklyError != null
+                              ? '-'
+                              : _formattedWeeklyTotal,
+                        ),
                       ],
                     ),
                     const SizedBox(height: 24),
 
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Expanded(
-                          child: _WeeklyBar(
-                            day: '9/7',
-                            hours: 5.2,
-                            status: status,
-                          ),
+                    if (_isLoadingWeekly)
+                      const Center(
+                        child: CircularProgressIndicator(),
+                      )
+                    else if (_weeklyError != null)
+                      Center(
+                        child: Column(
+                          children: [
+                            Text(_weeklyError!),
+                            TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  _isLoadingWeekly = true;
+                                  _weeklyError = null;
+                                });
+
+                                _loadWeeklyAttendance();
+                              },
+                              child: const Text('다시 불러오기'),
+                            ),
+                          ],
                         ),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: _WeeklyBar(
-                            day: '9/8',
-                            hours: 3.9,
-                            status: status,
-                          ),
-                        ),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: _WeeklyBar(
-                            day: '9/9',
-                            hours: 3.7,
-                            status: status,
-                          ),
-                        ),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: _WeeklyBar(
-                            day: '9/10',
-                            hours: 0,
-                            status: status,
-                          ),
-                        ),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: _WeeklyBar(
-                            day: '9/11',
-                            hours: 0,
-                            status: status,
-                          ),
-                        ),
-                      ],
-                    ),
+                      )
+                    else
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          for (final date in _weekDays)
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 3),
+                                child: _WeeklyBar(
+                                  day: '${date.month}/${date.day}',
+                                  hours: _weeklyMinutesFor(date) / 60.0,
+                                  status: _weeklyStatusFor(date),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                   ],
                 ),
               ),
