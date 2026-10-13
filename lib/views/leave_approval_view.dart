@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 
+import '../models/leave_request.dart';
+import '../services/firestore_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/app_card.dart';
 
@@ -13,7 +15,10 @@ enum ApprovalStatus {
 }
 
 class LeaveApprovalView extends StatefulWidget {
-  const LeaveApprovalView({super.key});
+  /// 처리할 결재 문서 ID. 없으면 가장 최근의 승인 대기 문서를 엽니다.
+  final String? requestId;
+
+  const LeaveApprovalView({super.key, this.requestId});
 
   @override
   State<LeaveApprovalView> createState() => _LeaveApprovalViewState();
@@ -21,7 +26,85 @@ class LeaveApprovalView extends StatefulWidget {
 
 class _LeaveApprovalViewState extends State<LeaveApprovalView>
     with SingleTickerProviderStateMixin {
+  final FirestoreService _fs = FirestoreService();
+
   ApprovalStatus _status = ApprovalStatus.pending;
+  LeaveRequest? _request;
+  bool _isLoading = true;
+  bool _isProcessing = false;
+
+  Future<void> _loadRequest() async {
+    try {
+      final requestId = widget.requestId;
+      LeaveRequest? request;
+
+      if (requestId != null) {
+        request = await _fs.readLeaveRequest(requestId);
+      } else {
+        final requests = await _fs.readLeaveRequests();
+        request = requests
+            .where((item) => item.status == LeaveApprovalStatus.pending)
+            .firstOrNull;
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _request = request;
+        _isLoading = false;
+        _status = switch (request?.status) {
+          LeaveApprovalStatus.approved => ApprovalStatus.approved,
+          LeaveApprovalStatus.rejected => ApprovalStatus.rejected,
+          _ => ApprovalStatus.pending,
+        };
+      });
+
+      // 이미 승인된 문서는 도장이 찍힌 상태로 보여줍니다.
+      if (_status == ApprovalStatus.approved) {
+        _stampController.value = 1;
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  // 승인·반려 결과를 저장합니다. 성공하면 true를 반환합니다.
+  Future<bool> _saveDecision({required bool approve}) async {
+    final request = _request;
+    if (request == null || _isProcessing) return false;
+
+    _isProcessing = true;
+    try {
+      final isUpdated = await _fs.decideLeaveRequest(
+        requestId: request.id,
+        approve: approve,
+      );
+
+      if (!isUpdated && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('이미 처리된 문서입니다.')),
+        );
+        _loadRequest();
+      }
+      return isUpdated;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '결재 처리에 실패했습니다: ${e.toString().replaceFirst('Exception: ', '')}',
+            ),
+          ),
+        );
+      }
+      return false;
+    } finally {
+      _isProcessing = false;
+    }
+  }
 
   late final AnimationController _stampController;
   late final Animation<double> _stampScale;
@@ -79,10 +162,15 @@ class _LeaveApprovalViewState extends State<LeaveApprovalView>
         curve: Curves.easeOut,
       ),
     );
+
+    _loadRequest();
   }
 
   Future<void> _approve() async {
     if (_status != ApprovalStatus.pending) return;
+
+    if (!await _saveDecision(approve: true)) return;
+    if (!mounted) return;
 
     setState(() {
       _status = ApprovalStatus.approved;
@@ -102,15 +190,18 @@ class _LeaveApprovalViewState extends State<LeaveApprovalView>
     if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('휴가 신청을 승인했습니다.'),
+      SnackBar(
+        content: Text('${_request?.type.label ?? '휴가'} 신청을 승인했습니다.'),
         behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
-  void _reject() {
+  Future<void> _reject() async {
     if (_status != ApprovalStatus.pending) return;
+
+    if (!await _saveDecision(approve: false)) return;
+    if (!mounted) return;
 
     HapticFeedback.lightImpact();
 
@@ -119,11 +210,19 @@ class _LeaveApprovalViewState extends State<LeaveApprovalView>
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('휴가 신청을 반려했습니다.'),
+      SnackBar(
+        content: Text('${_request?.type.label ?? '휴가'} 신청을 반려했습니다.'),
         behavior: SnackBarBehavior.floating,
       ),
     );
+  }
+
+  String _formatPeriod(LeaveRequest request) {
+    final format = DateFormat('M월 d일 (E)', 'ko_KR');
+    if (request.startDate == request.endDate) {
+      return format.format(request.startDate);
+    }
+    return '${format.format(request.startDate)} ~ ${format.format(request.endDate)}';
   }
 
   @override
@@ -168,7 +267,18 @@ class _LeaveApprovalViewState extends State<LeaveApprovalView>
           ],
         ),
       ),
-      body: SingleChildScrollView(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _request == null
+          ? Center(
+              child: Text(
+                '처리할 결재 문서가 없습니다.',
+                style: textTheme.bodyLarge?.copyWith(
+                  color: AppColors.inkMuted,
+                ),
+              ),
+            )
+          : SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(
           20,
           20,
@@ -185,7 +295,7 @@ class _LeaveApprovalViewState extends State<LeaveApprovalView>
                 children: [
                   Expanded(
                     child: Text(
-                      '휴가 신청서',
+                      '${_request!.type.label} 신청서',
                       style: textTheme.titleLarge?.copyWith(
                         color: AppColors.ink,
                         fontWeight: FontWeight.w700,
@@ -205,26 +315,33 @@ class _LeaveApprovalViewState extends State<LeaveApprovalView>
                   color: AppColors.fill,
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: const Column(
+                child: Column(
                   children: [
                     _ApprovalInfoRow(
-                      label: '종류',
-                      value: '반차(오후)',
+                      label: '문서번호',
+                      value: _request!.documentNumber,
                     ),
-                    SizedBox(height: 14),
+                    const SizedBox(height: 14),
+                    _ApprovalInfoRow(
+                      label: '종류',
+                      value: _request!.type.label,
+                    ),
+                    const SizedBox(height: 14),
                     _ApprovalInfoRow(
                       label: '사용일',
-                      value: '9월 4일 (금)',
+                      value: _formatPeriod(_request!),
                     ),
-                    SizedBox(height: 14),
-                    _ApprovalInfoRow(
+                    const SizedBox(height: 14),
+                    const _ApprovalInfoRow(
                       label: '기안자 / 결재자',
                       value: '본인 / 본인',
                     ),
-                    SizedBox(height: 14),
+                    const SizedBox(height: 14),
                     _ApprovalInfoRow(
                       label: '사유',
-                      value: '사유 미기재',
+                      value: _request!.reason.isEmpty
+                          ? '사유 미기재'
+                          : _request!.reason,
                     ),
                   ],
                 ),

@@ -53,9 +53,6 @@ class _MyPageViewState extends State<MyPageView> {
   Future<void> _withdrawAccount() async {
     final currentUser = FirebaseAuth.instance.currentUser;
 
-    debugPrint('현재 로그인 UID: ${currentUser?.uid}');
-    debugPrint('현재 로그인 이메일: ${currentUser?.email}');
-
     if (currentUser == null) {
       if (!mounted) return;
 
@@ -69,52 +66,68 @@ class _MyPageViewState extends State<MyPageView> {
       return;
     }
 
-    final shouldDelete = await showDialog<bool>(
+    // 탈퇴 전 본인 확인을 위해 비밀번호를 받습니다.
+    var enteredPassword = '';
+    final password = await showDialog<String>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('회원 탈퇴'),
-          content: const Text(
-            '계정과 사용자 정보가 모두 삭제됩니다.\n정말 탈퇴하시겠어요?',
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '계정과 사용자 정보가 모두 삭제됩니다.\n정말 탈퇴하시겠어요?',
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                onChanged: (value) => enteredPassword = value,
+                obscureText: true,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: '비밀번호 확인',
+                ),
+              ),
+            ],
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text('취소'),
             ),
             TextButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
+              onPressed: () =>
+                  Navigator.pop(dialogContext, enteredPassword),
               child: const Text('탈퇴'),
             ),
           ],
         );
       },
     );
+    if (password == null) return;
 
-    if (shouldDelete != true) return;
+    if (password.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('비밀번호를 입력해주세요.')),
+      );
+      return;
+    }
 
     try {
-      await _fs.deleteUser();
-      await _auth.deleteAccount();
+      await _auth.deleteAccount(password: password);
 
       if (!mounted) return;
 
       context.go('/login');
-    } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
-
-      final message = e.code == 'requires-recent-login'
-          ? '보안을 위해 다시 로그인한 후 탈퇴해 주세요.'
-          : '회원 탈퇴에 실패했습니다.';
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
     } catch (e) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('회원 탈퇴 실패: $e')),
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+        ),
       );
     }
   }
@@ -134,30 +147,26 @@ class _MyPageViewState extends State<MyPageView> {
       final availableEndMinutes =
         (workSettings?['availableEndMinutes'])?.toInt();
 
-      final workGoals = workSettings?['goals'];
+      final allowedRadiusMeters =
+        (workSettings?['allowedRadiusMeters'] as num?)?.toInt();
 
-      if (workplaceName == null) {
-        setState(() {
-          _workPlaceDescription = '근무지를 선택해주세요';
-        });
-      }
-
-      if (dailyWorkMinutes == null ||
-          availableStartMinutes == null ||
-          availableEndMinutes == null) {
-        setState(() {
-          _workTimeDescription = '근무 시간을 설정해주세요';
-        });
-        return;
-      }
+      // 건너뛰기한 사용자는 goals가 null일 수 있습니다.
+      final workGoals = (workSettings?['goals'] as List?)?.cast<String>() ?? const <String>[];
 
       setState(() {
-        _workPlaceDescription = '$workplaceName · 반경 50m';
+        _workPlaceDescription = workplaceName == null
+            ? '근무지를 선택해주세요'
+            : allowedRadiusMeters == null
+                ? '$workplaceName'
+                : '$workplaceName · 반경 ${allowedRadiusMeters}m';
 
-        _workTimeDescription =
-        '소정 근로 ${_formatWorkDuration(dailyWorkMinutes)} · '
-            '출근 ${_formatTime(availableStartMinutes)} ~ '
-            '${_formatTime(availableEndMinutes)}';
+        _workTimeDescription = dailyWorkMinutes == null ||
+                availableStartMinutes == null ||
+                availableEndMinutes == null
+            ? '근무 시간을 설정해주세요'
+            : '소정 근로 ${_formatWorkDuration(dailyWorkMinutes)} · '
+                '출근 ${_formatTime(availableStartMinutes)} ~ '
+                '${_formatTime(availableEndMinutes)}';
 
         _workGoalDescription = workGoals.isEmpty ? '준비 목표를 설정해주세요' : workGoals.join(' · ');
       });

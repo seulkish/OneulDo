@@ -598,7 +598,9 @@ class _SetWorkplaceViewState extends State<SetWorkplaceView> {
             // const SizedBox(height: 8),
             Center(
               child: TextButton(
-                onPressed: () {
+                onPressed: () async {
+                  await _fs.completeOnboarding(goals: []);
+                  if (!context.mounted) return;
                   context.go('/');
                 },
                 child: Text(

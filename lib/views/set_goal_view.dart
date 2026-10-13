@@ -5,6 +5,7 @@ import '../services/firestore_service.dart';
 import 'package:go_router/go_router.dart';
 import '../widgets/confirm_dialog.dart';
 import '../widgets/position_badge.dart';
+import '../widgets/position_path_card.dart';
 
 import '../theme/app_colors.dart';
 import '../widgets/app_button.dart';
@@ -360,8 +361,19 @@ class _SetGoalViewState extends State<SetGoalView> {
                         _arrow(),
                         PositionBadge(position: '이사', colors: AppBadges.notStarted,),
                         TextButton(
+                          // 온보딩을 벗어나지 않도록 승진 경로를 바텀시트로 보여줍니다.
                           onPressed: () {
-                            context.go('/career');
+                            showModalBottomSheet<void>(
+                              context: context,
+                              isScrollControlled: true,
+                              backgroundColor: Colors.transparent,
+                              builder: (context) => SafeArea(
+                                child: SingleChildScrollView(
+                                  padding: const EdgeInsets.all(16),
+                                  child: const PositionPathCard(currentPosition: '인턴'),
+                                ),
+                              ),
+                            );
                           },
                           child: Text(
                             '자세히 보기',

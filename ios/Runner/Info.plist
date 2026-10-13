@@ -47,6 +47,8 @@
 				</array>
 			</dict>
 		</dict>
+		<key>NSLocationWhenInUseUsageDescription</key>
+		<string>출근 인증과 주변 근무 장소 추천을 위해 현재 위치를 사용합니다.</string>
 		<key>UIApplicationSupportsIndirectInputEvents</key>
 		<true/>
 		<key>UILaunchStoryboardName</key>

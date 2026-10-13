@@ -64,23 +64,60 @@ class FirebaseAuthService {
     }
   }
 
-  Future<void> deleteAccount() async {
+  // 회원 탈퇴
+  // 1) 비밀번호로 재인증 → 2) 사용자 데이터 삭제 → 3) 계정 삭제
+  // 보안 규칙상 계정을 지운 뒤에는 데이터에 접근할 수 없으므로 데이터를 먼저 지웁니다.
+  // 재인증을 먼저 해 두어 계정 삭제 단계에서 requires-recent-login이 나지 않게 합니다.
+  Future<void> deleteAccount({required String password}) async {
     final user = _auth.currentUser;
-    // debugPrint('현재 사용자: ${user?.email}');
-    // debugPrint('현재 UID: ${user?.uid}');
 
-    if (user == null) {
+    if (user == null || user.email == null) {
       throw Exception('로그인이 필요합니다.');
     }
 
-    final uid = user.uid;
+    try {
+      await user.reauthenticateWithCredential(
+        EmailAuthProvider.credential(email: user.email!, password: password),
+      );
+    } on FirebaseAuthException catch (e) {
+      throw Exception(_getErrorMessage(e.code));
+    }
 
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .delete();
+    final userDocument =
+        FirebaseFirestore.instance.collection('users').doc(user.uid);
 
-    await user.delete();
+    for (final name in _userSubcollections) {
+      await _deleteCollection(userDocument.collection(name));
+    }
+    await userDocument.delete();
+
+    try {
+      await user.delete();
+    } on FirebaseAuthException catch (e) {
+      throw Exception(_getErrorMessage(e.code));
+    }
+  }
+
+  static const _userSubcollections = [
+    'attendanceRecords',
+    'schedules',
+    'leaveRequests',
+    'notifications',
+  ];
+
+  Future<void> _deleteCollection(
+    CollectionReference<Map<String, dynamic>> collection,
+  ) async {
+    while (true) {
+      final snapshot = await collection.limit(400).get();
+      if (snapshot.docs.isEmpty) return;
+
+      final batch = FirebaseFirestore.instance.batch();
+      for (final document in snapshot.docs) {
+        batch.delete(document.reference);
+      }
+      await batch.commit();
+    }
   }
 
   String _getErrorMessage(String code) {
@@ -95,6 +132,10 @@ class FirebaseAuthService {
       case 'wrong-password':
       case 'invalid-credential':
         return '이메일 또는 비밀번호가 올바르지 않습니다.';
+      case 'requires-recent-login':
+        return '보안을 위해 다시 로그인한 후 시도해주세요.';
+      case 'user-mismatch':
+        return '현재 로그인한 계정의 비밀번호를 입력해주세요.';
       case 'user-disabled':
         return '사용이 중지된 계정입니다.';
       case 'too-many-requests':

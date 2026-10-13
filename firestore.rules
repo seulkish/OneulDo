@@ -1,0 +1,11 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 사용자는 자기 문서와 하위 컬렉션(attendanceRecords, schedules, leaveRequests, notifications)만 접근할 수 있습니다.
+    // rules_version 2에서 {document=**}는 0개 이상의 경로와 일치하므로 users/{uid} 문서 자체도 포함됩니다.
+    match /users/{uid}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}

@@ -2,6 +2,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../models/leave_request.dart';
+
 class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -34,6 +36,31 @@ class FirestoreService {
     return userDocument
         .collection('attendanceRecords')
         .doc(_todayDateId);
+  }
+
+  // 아직 끝나지 않은 근무 상태
+  static const _activeStatuses = {'working', 'fieldWork', 'overtime'};
+
+  // 현재 근무 문서
+  // 오늘 기록이 없고 전날 근무가 진행 중이면(자정을 넘긴 근무) 전날 문서를 사용합니다.
+  Future<DocumentReference<Map<String, dynamic>>>
+      _currentAttendanceDocument() async {
+    final todayDocument = _todayAttendanceDocument;
+    final todaySnapshot = await todayDocument.get();
+
+    if (todaySnapshot.exists) return todayDocument;
+
+    final koreaNow = DateTime.now().toUtc().add(const Duration(hours: 9));
+    final yesterday = DateTime(koreaNow.year, koreaNow.month, koreaNow.day - 1);
+    final yesterdayDocument = userDocument
+        .collection('attendanceRecords')
+        .doc(_dateId(yesterday));
+    final yesterdaySnapshot = await yesterdayDocument.get();
+
+    final status = yesterdaySnapshot.data()?['status'] as String?;
+    if (_activeStatuses.contains(status)) return yesterdayDocument;
+
+    return todayDocument;
   }
 
   // Create 사용자 정보 저장
@@ -96,7 +123,7 @@ class FirestoreService {
   }
 
   Future<Map<String, dynamic>?> readTodayAttendance() async {
-    final snapshot = await _todayAttendanceDocument.get();
+    final snapshot = await (await _currentAttendanceDocument()).get();
 
     if (!snapshot.exists) {
       return null;
@@ -177,7 +204,7 @@ class FirestoreService {
   }
 
   Future<void> validateFieldWorkRequest() async {
-    final snapshot = await _todayAttendanceDocument.get();
+    final snapshot = await (await _currentAttendanceDocument()).get();
 
     if (!snapshot.exists) {
       throw Exception('출근 후에만 외근을 신청할 수 있습니다.');
@@ -280,15 +307,6 @@ class FirestoreService {
     });
   }
 
-  // Delete 사용자 정보 삭제
-  Future<void> deleteUser() async {
-    final user = _auth.currentUser;
-    if (user == null) {
-      throw Exception('로그인이 필요합니다.');
-    }
-    await userDocument.delete();
-  }
-
   // 출근 기록
   Future<bool> saveAttendanceRecord({
     required int requiredWorkMinutes,
@@ -360,7 +378,7 @@ class FirestoreService {
     // 실제 시간 계산 및 Timestamp 저장에 사용
     final now = DateTime.now();
 
-    final attendanceDocument = _todayAttendanceDocument;
+    final attendanceDocument = await _currentAttendanceDocument();
 
     return _firestore.runTransaction<bool>((transaction) async {
       final snapshot = await transaction.get(attendanceDocument);
@@ -410,7 +428,18 @@ class FirestoreService {
             .inMinutes
             .clamp(0, 1440);
 
-        if (status == 'fieldWork') {
+        final fieldWorkStartedAt =
+            data['fieldWorkStartedAt'] as Timestamp?;
+
+        if (status == 'fieldWork' && fieldWorkStartedAt != null) {
+          // 근무 중 외근이 승인된 경우: 승인 전은 일반 근무, 이후는 외근
+          workedMinutes = fieldWorkStartedAt
+              .toDate()
+              .difference(startedAt.toDate())
+              .inMinutes
+              .clamp(0, baseWorkMinutes);
+          fieldWorkMinutes = baseWorkMinutes - workedMinutes;
+        } else if (status == 'fieldWork') {
           // 하루 전체가 외근인 경우
           fieldWorkMinutes = baseWorkMinutes;
           workedMinutes = 0;
@@ -477,38 +506,186 @@ class FirestoreService {
     });
   }
 
+  CollectionReference<Map<String, dynamic>> get _leaveRequests {
+    return userDocument.collection('leaveRequests');
+  }
+
+  // 휴가·외근 신청 저장
+  Future<LeaveRequest> createLeaveRequest({
+    required LeaveType type,
+    required DateTime startDate,
+    required DateTime endDate,
+    required String reason,
+  }) async {
+    final document = _leaveRequests.doc();
+    final koreaNow = DateTime.now().toUtc().add(const Duration(hours: 9));
+    final documentNumber =
+        'ON-${_dateId(koreaNow).replaceAll('-', '')}-'
+        '${document.id.substring(0, 4).toUpperCase()}';
+
+    await document.set({
+      'documentNumber': documentNumber,
+      'leaveType': type.value,
+      'approvalStatus': LeaveApprovalStatus.pending.value,
+      'startDate': kstDateToTimestamp(startDate),
+      'endDate': kstDateToTimestamp(endDate),
+      'reason': reason,
+      'createdAt': FieldValue.serverTimestamp(),
+      'decidedAt': null,
+    });
+
+    return LeaveRequest(
+      id: document.id,
+      documentNumber: documentNumber,
+      type: type,
+      startDate: startDate,
+      endDate: endDate,
+      reason: reason,
+    );
+  }
+
+  // 결재 이력 조회 (최근 신청 순)
+  Future<List<LeaveRequest>> readLeaveRequests({int limit = 20}) async {
+    final snapshot = await _leaveRequests
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .get();
+
+    return snapshot.docs.map(LeaveRequest.fromFirestore).toList();
+  }
+
+  Future<LeaveRequest?> readLeaveRequest(String requestId) async {
+    final snapshot = await _leaveRequests.doc(requestId).get();
+    if (!snapshot.exists) return null;
+    return LeaveRequest.fromFirestore(snapshot);
+  }
+
+  // 상신 취소: 승인 대기 중인 신청만 삭제할 수 있습니다.
+  Future<bool> cancelLeaveRequest(String requestId) {
+    final document = _leaveRequests.doc(requestId);
+
+    return _firestore.runTransaction<bool>((transaction) async {
+      final snapshot = await transaction.get(document);
+      if (snapshot.data()?['approvalStatus'] != LeaveApprovalStatus.pending.value) {
+        return false;
+      }
+      transaction.delete(document);
+      return true;
+    });
+  }
+
+  // 승인·반려 처리
+  // 승인 시 외근은 오늘 근무 상태를 외근으로 바꾸고, 연차는 해당 날짜를 휴가로 기록합니다.
+  Future<bool> decideLeaveRequest({
+    required String requestId,
+    required bool approve,
+  }) async {
+    final requestDocument = _leaveRequests.doc(requestId);
+    final currentAttendanceDocument = await _currentAttendanceDocument();
+    final koreaNow = DateTime.now().toUtc().add(const Duration(hours: 9));
+    final today = DateTime(koreaNow.year, koreaNow.month, koreaNow.day);
+
+    return _firestore.runTransaction<bool>((transaction) async {
+      final requestSnapshot = await transaction.get(requestDocument);
+      if (!requestSnapshot.exists) {
+        throw Exception('결재 문서를 찾을 수 없습니다.');
+      }
+
+      final request = LeaveRequest.fromFirestore(requestSnapshot);
+      if (request.status != LeaveApprovalStatus.pending) {
+        return false;
+      }
+
+      final coversToday = !today.isBefore(request.startDate) &&
+          !today.isAfter(request.endDate);
+
+      // 트랜잭션은 모든 읽기를 쓰기보다 먼저 해야 합니다.
+      DocumentSnapshot<Map<String, dynamic>>? attendanceSnapshot;
+      final vacationDays = <DocumentReference<Map<String, dynamic>>>[];
+
+      if (approve && request.type == LeaveType.fieldWork && coversToday) {
+        attendanceSnapshot = await transaction.get(currentAttendanceDocument);
+      }
+
+      if (approve && request.type == LeaveType.fullDay) {
+        for (var day = request.startDate;
+            !day.isAfter(request.endDate) && vacationDays.length < 31;
+            day = DateTime(day.year, day.month, day.day + 1)) {
+          final dayDocument =
+              userDocument.collection('attendanceRecords').doc(_dateId(day));
+          final daySnapshot = await transaction.get(dayDocument);
+          if (!daySnapshot.exists) vacationDays.add(dayDocument);
+        }
+      }
+
+      transaction.update(requestDocument, {
+        'approvalStatus': approve
+            ? LeaveApprovalStatus.approved.value
+            : LeaveApprovalStatus.rejected.value,
+        'decidedAt': FieldValue.serverTimestamp(),
+      });
+
+      if (attendanceSnapshot?.data()?['status'] == 'working') {
+        transaction.update(currentAttendanceDocument, {
+          'status': 'fieldWork',
+          'fieldWorkStartedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      for (final dayDocument in vacationDays) {
+        transaction.set(dayDocument, {
+          'userId': _uid,
+          'dateId': dayDocument.id,
+          'status': 'vacation',
+          'leaveRequestId': requestId,
+          'workedMinutes': 0,
+          'fieldWorkMinutes': 0,
+          'overtimeMinutes': 0,
+          'totalWorkedMinutes': 0,
+          'requiredWorkMinutes': 0,
+          'earnedPoint': 0,
+        });
+      }
+
+      return true;
+    });
+  }
+
   Future<bool> hasApprovedFieldWorkForToday() async {
     final koreaNow = DateTime.now().toUtc().add(
       const Duration(hours: 9),
     );
 
-    final today = Timestamp.fromDate(
-      DateTime.utc(koreaNow.year, koreaNow.month, koreaNow.day),
-    );
+    // 한국 날짜 자정의 실제 시각 (KST 00:00 = UTC 전날 15:00)
+    final todayStart = DateTime.utc(
+      koreaNow.year,
+      koreaNow.month,
+      koreaNow.day,
+    ).subtract(const Duration(hours: 9));
+    final tomorrowStart = todayStart.add(const Duration(days: 1));
 
-    final tomorrow = Timestamp.fromDate(
-      DateTime.utc(koreaNow.year, koreaNow.month, koreaNow.day + 1),
-    );
-
+    // 등호 조건만 사용해 복합 인덱스 없이 조회하고, 기간은 클라이언트에서 거릅니다.
     final snapshot = await userDocument
         .collection('leaveRequests')
         .where('leaveType', isEqualTo: 'fieldWork')
         .where('approvalStatus', isEqualTo: 'approved')
-        .where('startDate', isLessThan: tomorrow)
         .get();
 
     return snapshot.docs.any((document) {
       final data = document.data();
-      final endDate = data['endDate'] as Timestamp?;
+      final startDate = (data['startDate'] as Timestamp?)?.toDate();
+      final endDate = (data['endDate'] as Timestamp?)?.toDate();
 
-      return endDate != null && !endDate.toDate().isBefore(today.toDate());
+      if (startDate == null || endDate == null) return false;
+
+      return startDate.isBefore(tomorrowStart) && !endDate.isBefore(todayStart);
     });
   }
 
   Future<bool> startOvertime() async {
     final now = DateTime.now();
 
-    final attendanceDocument = _todayAttendanceDocument;
+    final attendanceDocument = await _currentAttendanceDocument();
 
     return _firestore.runTransaction<bool>((transaction) async {
       final snapshot = await transaction.get(attendanceDocument);

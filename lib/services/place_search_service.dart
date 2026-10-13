@@ -5,9 +5,8 @@ import 'package:http/http.dart' as http;
 import '../models/workplace_option.dart';
 
 class PlaceSearchService {
-  static const _apiKey = String.fromEnvironment(
-    '83e7148b61e5fa7887009930a50551b7', // TODO: 추후 보안 처리 예정
-  );
+  // 빌드 시 주입: flutter run --dart-define-from-file=env.json
+  static const _apiKey = String.fromEnvironment('KAKAO_REST_API_KEY');
 
   Future<List<WorkplaceOption>> searchNearby({
     required double latitude,

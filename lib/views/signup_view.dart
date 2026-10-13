@@ -64,11 +64,17 @@ class _SignupViewState extends State<SignupView> {
         throw Exception('회원가입 정보를 확인할 수 없습니다.');
       }
 
-      await _fs.createUser(
-        email: user.email!,
-        nickname: _nicknameController.text.trim(),
-        phone: _phoneController.text.trim(),
-      );
+      try {
+        await _fs.createUser(
+          email: user.email!,
+          nickname: _nicknameController.text.trim(),
+          phone: _phoneController.text.trim(),
+        );
+      } catch (_) {
+        // 사용자 문서 저장에 실패하면 방금 만든 계정을 지워 다시 가입할 수 있게 합니다.
+        await user.delete().catchError((_) {});
+        throw Exception('회원 정보를 저장하지 못했습니다. 다시 시도해주세요.');
+      }
 
       if (!mounted) return;
 

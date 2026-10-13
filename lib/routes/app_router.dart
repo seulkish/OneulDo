@@ -24,6 +24,7 @@ import '../views/goal_setting_view.dart';
 import '../views/notification_view.dart';
 
 import '../models/work_status.dart';
+import '../services/auth_session.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'root',
@@ -44,22 +45,25 @@ final GlobalKey<NavigatorState> _myPageNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'myPage',
 );
 
+final authSession = AuthSession();
+
 final router = GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/landing',
+  refreshListenable: authSession,
   redirect: (context, state) {
+
     final isLoggedIn =
         FirebaseAuth.instance.currentUser != null;
 
+    if (state.uri.path == '/landing') {
+      return null;
+    }
     final path = state.uri.path;
 
-    final isPublicRoute =
-        path == '/landing' ||
-            path == '/login' ||
-            path == '/signup';
+    final isPublicRoute = path == '/login' || path == '/signup';
 
-    final isOnboardingRoute =
-    path.startsWith('/signup/');
+    final isOnboardingRoute = path.startsWith('/signup/');
 
     // 비로그인 사용자는 공개 화면만 접근 가능
     if (!isLoggedIn) {
@@ -70,14 +74,25 @@ final router = GoRouter(
       return '/login';
     }
 
-    // 로그인 사용자가 로그인·랜딩 화면에 접근한 경우
-    if (path == '/landing' || path == '/login') {
-      return '/';
+    final onboardingCompleted = authSession.onboardingCompleted;
+
+    // 사용자 문서를 불러오는 중이면 판단을 미루고, 불러온 뒤 refresh로 다시 확인합니다.
+    if (onboardingCompleted == null) {
+      return null;
     }
 
-    // 회원가입 직후 온보딩 화면 이동 허용
-    if (path == '/signup' || isOnboardingRoute) {
-      return null;
+    // 온보딩을 마치지 않은 사용자는 가입·온보딩 화면만 접근 가능
+    if (!onboardingCompleted) {
+      if (path == '/signup' || isOnboardingRoute) {
+        return null;
+      }
+
+      return '/signup/workplace';
+    }
+
+    // 온보딩을 마친 사용자가 로그인·가입·온보딩 화면에 접근한 경우
+    if (isPublicRoute || isOnboardingRoute) {
+      return '/';
     }
 
     return null;
@@ -163,9 +178,11 @@ final router = GoRouter(
               builder: (context, state) => const LeaveRequestView(),
               routes: [
                 GoRoute(
-                  path: '/approval',
+                  path: 'approval',
                   name: 'approval',
-                  builder: (context, state) => const LeaveApprovalView(),
+                  builder: (context, state) => LeaveApprovalView(
+                    requestId: state.uri.queryParameters['id'],
+                  ),
                 ),
               ]
             ),

@@ -5,25 +5,12 @@ import 'package:intl/intl.dart';
 
 import '../theme/app_colors.dart';
 
+import '../models/leave_request.dart';
 import '../services/firestore_service.dart';
 
 import '../widgets/app_bar.dart';
 import '../widgets/summary_item.dart';
 import '../widgets/app_button.dart';
-
-class ApprovalHistory {
-  final String type;
-  final DateTime date;
-  final String reason;
-  final String status;
-
-  const ApprovalHistory({
-    required this.type,
-    required this.date,
-    required this.reason,
-    this.status = '승인',
-  });
-}
 
 class LeaveRequestView extends StatefulWidget {
   const LeaveRequestView({super.key});
@@ -41,34 +28,43 @@ class _LeaveRequestViewState extends State<LeaveRequestView> {
   DateTime _startDate = DateTime.now();
   DateTime _endDate = DateTime.now();
 
+  List<LeaveRequest> _approvalHistories = [];
+  bool _isLoadingHistories = true;
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHistories();
+  }
+
   @override
   void dispose() {
     _reasonController.dispose();
     super.dispose();
   }
 
-  final List<ApprovalHistory> _approvalHistories = [
-    ApprovalHistory(
-      type: '반차(오후)',
-      date: DateTime(2026, 9, 4),
-      reason: '사유 미기재',
-    ),
-    ApprovalHistory(
-      type: '반차(오후)',
-      date: DateTime(2026, 8, 21),
-      reason: '병원 방문으로 연차 사용',
-    ),
-    ApprovalHistory(
-      type: '연차',
-      date: DateTime(2026, 8, 12),
-      reason: '가족 행사',
-    ),
-    ApprovalHistory(
-      type: '외근',
-      date: DateTime(2026, 8, 3),
-      reason: '채용 설명회 참석',
-    ),
-  ];
+  Future<void> _loadHistories() async {
+    try {
+      final histories = await _fs.readLeaveRequests();
+      if (!mounted) return;
+      setState(() {
+        _approvalHistories = histories;
+        _isLoadingHistories = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingHistories = false;
+      });
+    }
+  }
+
+  Future<void> _openApproval(String requestId) async {
+    await context.push('/leave/approval?id=$requestId');
+    // 승인·반려 결과를 이력에 반영합니다.
+    _loadHistories();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -101,13 +97,15 @@ class _LeaveRequestViewState extends State<LeaveRequestView> {
               onTypeChanged: _changeType,
               onStartDateTap: _selectStartDate,
               onEndDateTap: _selectEndDate,
-              onSubmit: _submitRequest,
+              onSubmit: _isSubmitting ? null : _submitRequest,
             ),
             const SizedBox(height: 16),
 
             // 결재 이력
             _ApprovalHistoryCard(
               histories: _approvalHistories,
+              isLoading: _isLoadingHistories,
+              onTap: _openApproval,
             ),
           ],
         ),
@@ -186,17 +184,46 @@ class _LeaveRequestViewState extends State<LeaveRequestView> {
       return;
     }
 
-    if (_selectedType == '외근') {
-      try {
+    final type = LeaveType.fromLabel(_selectedType);
+    // 반차는 하루 단위로만 신청합니다.
+    final endDate = type == LeaveType.morning || type == LeaveType.afternoon
+        ? _startDate
+        : _endDate;
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    final LeaveRequest request;
+    try {
+      if (type == LeaveType.fieldWork) {
         await _fs.validateFieldWorkRequest();
-      } catch (e) {
-        final errorMessage = e.toString().replaceFirst('Exception: ', '');
-        _showRequestError(errorMessage);
-        return;
+      }
+
+      request = await _fs.createLeaveRequest(
+        type: type,
+        startDate: _startDate,
+        endDate: endDate,
+        reason: reason,
+      );
+    } catch (e) {
+      final errorMessage = e.toString().replaceFirst('Exception: ', '');
+      _showRequestError(errorMessage);
+      return;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
       }
     }
 
-    final documentNumber = 'ON-2026-0902-02';
+    if (!mounted) return;
+
+    _reasonController.clear();
+    _loadHistories();
+
+    final documentNumber = request.documentNumber;
 
     showDialog(
       context: context,
@@ -257,8 +284,21 @@ class _LeaveRequestViewState extends State<LeaveRequestView> {
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: () {
+                    onPressed: () async {
                       Navigator.of(dialogContext).pop();
+                      final isCanceled =
+                          await _fs.cancelLeaveRequest(request.id);
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            isCanceled
+                                ? '상신을 취소했습니다.'
+                                : '이미 처리된 문서는 취소할 수 없습니다.',
+                          ),
+                        ),
+                      );
+                      _loadHistories();
                     },
                     style: OutlinedButton.styleFrom(
                       minimumSize: Size.fromHeight(50)
@@ -271,7 +311,7 @@ class _LeaveRequestViewState extends State<LeaveRequestView> {
                   child: FilledButton(
                     onPressed: () {
                       Navigator.of(dialogContext).pop();
-                      context.push('/leave/approval');
+                      _openApproval(request.id);
                     },
                     style: OutlinedButton.styleFrom(
                       minimumSize: Size.fromHeight(50)
@@ -431,7 +471,7 @@ class _LeaveRequestCard extends StatelessWidget {
   final ValueChanged<String> onTypeChanged;
   final VoidCallback onStartDateTap;
   final VoidCallback onEndDateTap;
-  final VoidCallback onSubmit;
+  final VoidCallback? onSubmit;
 
   const _LeaveRequestCard({
     required this.selectedType,
@@ -480,7 +520,9 @@ class _LeaveRequestCard extends StatelessWidget {
 
           const SizedBox(height: 12),
 
+          // 오전/오후 버튼으로 바뀐 값도 반영되도록 key로 다시 만듭니다.
           DropdownButtonFormField<String>(
+            key: ValueKey(selectedType),
             initialValue: selectedType,
             decoration: const InputDecoration(
               border: OutlineInputBorder(),
@@ -691,10 +733,14 @@ class _HalfDayButton extends StatelessWidget {
 }
 
 class _ApprovalHistoryCard extends StatelessWidget {
-  final List<ApprovalHistory> histories;
+  final List<LeaveRequest> histories;
+  final bool isLoading;
+  final ValueChanged<String> onTap;
 
   const _ApprovalHistoryCard({
     required this.histories,
+    required this.isLoading,
+    required this.onTap,
   });
 
   @override
@@ -726,9 +772,26 @@ class _ApprovalHistoryCard extends StatelessWidget {
           const SizedBox(height: 16),
           const Divider(height: 1),
 
+          if (isLoading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (histories.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Text(
+                '아직 상신한 결재 문서가 없습니다.',
+                style: textTheme.bodyMedium?.copyWith(
+                  color: AppColors.inkMuted,
+                ),
+              ),
+            ),
+
           for (int index = 0; index < histories.length; index++) ...[
             _ApprovalHistoryItem(
               history: histories[index],
+              onTap: () => onTap(histories[index].id),
             ),
             if (index != histories.length - 1)
               const Divider(height: 1),
@@ -740,17 +803,34 @@ class _ApprovalHistoryCard extends StatelessWidget {
 }
 
 class _ApprovalHistoryItem extends StatelessWidget {
-  final ApprovalHistory history;
+  final LeaveRequest history;
+  final VoidCallback onTap;
 
   const _ApprovalHistoryItem({
     required this.history,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
-    return Padding(
+    final (badgeBackground, badgeForeground) = switch (history.status) {
+      LeaveApprovalStatus.approved =>
+        (const Color(0xFFE2F5DE), const Color(0xFF23812D)),
+      LeaveApprovalStatus.rejected =>
+        (const Color(0xFFFDE8E8), const Color(0xFFC62828)),
+      LeaveApprovalStatus.pending =>
+        (const Color(0xFFFFF4DC), const Color(0xFF9A6700)),
+    };
+
+    final period = history.startDate == history.endDate
+        ? _formatDate(history.startDate)
+        : '${_formatDate(history.startDate)} ~ ${_formatDate(history.endDate)}';
+
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
       padding: const EdgeInsets.symmetric(vertical: 18),
       child: Row(
         children: [
@@ -759,7 +839,7 @@ class _ApprovalHistoryItem extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${history.type} · ${_formatDate(history.date)}',
+                  '${history.type.label} · $period',
                   style: textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w500,
                   ),
@@ -783,18 +863,19 @@ class _ApprovalHistoryItem extends StatelessWidget {
               vertical: 8,
             ),
             decoration: BoxDecoration(
-              color: const Color(0xFFE2F5DE),
+              color: badgeBackground,
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              history.status,
+              history.status.label,
               style: textTheme.bodyMedium?.copyWith(
-                color: const Color(0xFF23812D),
+                color: badgeForeground,
                 fontWeight: FontWeight.w500,
               ),
             ),
           ),
         ],
+      ),
       ),
     );
   }

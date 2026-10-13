@@ -96,15 +96,19 @@ users/{uid}
 예시:
 
 {
-"durationType": "quarterDay",
-"timeSlot": "endOfWork",
-"startAt": "Timestamp",
-"endAt": "Timestamp",
+"documentNumber": "ON-20261013-A1B2",
+"leaveType": "fullDay | morning | afternoon | fieldWork | businessTrip",
+"approvalStatus": "pending | approved | rejected",
+"startDate": "Timestamp (시작일 KST 00:00)",
+"endDate": "Timestamp (종료일 KST 00:00, 종료일 포함)",
 "reason": "병원 방문",
-"status": "pending",
 "createdAt": "Timestamp",
-"approvedAt": null
+"decidedAt": null
 }
+
+승인 시 처리:
+- fieldWork: 오늘이 기간에 포함되고 근무 중이면 오늘 근태의 status를 fieldWork로 바꾸고 fieldWorkStartedAt을 기록한다. 퇴근 시 그 이전은 workedMinutes, 이후는 fieldWorkMinutes로 나눈다.
+- fullDay: 기간 내 근태 기록이 없는 날짜마다 status가 vacation인 attendanceRecords 문서를 만든다 (최대 31일).
 
 ---
 
