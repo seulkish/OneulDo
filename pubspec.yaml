@@ -44,8 +44,12 @@ dependencies:
   firebase_auth: ^6.7.0
   firebase_core: ^4.15.0
   http: ^1.6.0
+  flutter_web_plugins:
+    sdk: flutter
 
 dev_dependencies:
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.6
   flutter_test:
     sdk: flutter
 
@@ -55,6 +59,26 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+
+flutter_launcher_icons:
+  ios: true
+  android: "launcher_icon"
+  remove_alpha_ios: true
+  image_path: "assets/icons/app_icon.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icons/app_icon.png"
+
+flutter_native_splash:
+  color: "#316DE6"
+  image: "assets/icons/splash_logo.png"
+  android_gravity: center
+  ios_content_mode: center
+  fullscreen: true
+
+  android_12:
+    color: "#316DE6"
+    image: "assets/icons/splash_logo.png"
+
 flutter:
 
   # The following line ensures that the Material Icons font is
